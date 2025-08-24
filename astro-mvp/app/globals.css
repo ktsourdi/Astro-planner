@@ -1,0 +1,7 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+a { text-decoration: none; }
+input, select { padding: 8px; border-radius: 6px; border: 1px solid #374151; background: #0e131a; color: #e6edf3; }
+label { display: block; font-size: 12px; color: #9ca3af; margin-bottom: 4px; }
+button { background: #2563eb; color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; }
+button:disabled { opacity: 0.6; cursor: not-allowed; }
