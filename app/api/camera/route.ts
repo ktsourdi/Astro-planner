@@ -53,7 +53,7 @@ function normalize(str: string): string {
 }
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
+  const searchParams = req.nextUrl.searchParams;
   const query = (searchParams.get("query") || "").trim();
   if (!query) {
     return NextResponse.json({ items: [] }, { status: 200 });
