@@ -39,16 +39,21 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
       const v = (form as any)[k];
       if (v !== "" && v != null) p.set(String(k), String(v));
     });
+    console.debug("[setup] built params", Object.fromEntries(p.entries()));
     return p;
   }
 
   function persistAndNavigate(target: "plan" | "recommend") {
     const params = toParams();
     if (target === "plan" && !form.targetId) return;
-    sessionStorage.setItem("astro-params", params.toString());
+    const raw = params.toString();
+    console.debug("[setup] saving session params", { raw });
+    sessionStorage.setItem("astro-params", raw);
     if (target === "plan") {
       const qs = params.toString();
-      window.open(`/api/plan?${qs}`, "_blank");
+      const url = `/api/plan?${qs}`;
+      console.debug("[setup] opening plan", { url });
+      window.open(url, "_blank");
     } else {
       router.push("/recommend");
     }
@@ -70,13 +75,20 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     const controller = new AbortController();
     const timer = setTimeout(() => {
       setIsFetchingPlaces(true);
-      fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(placeQuery)}&limit=5`, {
+      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(placeQuery)}&limit=5`;
+      console.debug("[setup] fetching places", { url });
+      fetch(url, {
         headers: { "Accept": "application/json" },
         signal: controller.signal,
       })
         .then((r) => r.json())
-        .then((json) => setSuggestions(Array.isArray(json) ? json : []))
-        .catch(() => {})
+        .then((json) => {
+          console.debug("[setup] places response", { count: Array.isArray(json) ? json.length : undefined });
+          setSuggestions(Array.isArray(json) ? json : []);
+        })
+        .catch((e) => {
+          console.warn("[setup] places fetch error", e);
+        })
         .finally(() => setIsFetchingPlaces(false));
     }, 300);
     return () => {
@@ -94,10 +106,17 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     const controller = new AbortController();
     const timer = setTimeout(() => {
       setIsFetchingCameras(true);
-      fetch(`/api/camera?query=${encodeURIComponent(q)}`, { signal: controller.signal })
+      const url = `/api/camera?query=${encodeURIComponent(q)}`;
+      console.debug("[setup] fetching cameras", { url });
+      fetch(url, { signal: controller.signal })
         .then((r) => r.json())
-        .then((json) => setCameraSuggestions(Array.isArray(json?.items) ? json.items : []))
-        .catch(() => {})
+        .then((json) => {
+          console.debug("[setup] cameras response", { count: Array.isArray(json?.items) ? json.items.length : undefined });
+          setCameraSuggestions(Array.isArray(json?.items) ? json.items : []);
+        })
+        .catch((e) => {
+          console.warn("[setup] cameras fetch error", e);
+        })
         .finally(() => setIsFetchingCameras(false));
     }, 250);
     return () => {
