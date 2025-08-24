@@ -19,14 +19,21 @@ export default function RecommendPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.sessionStorage.getItem("astro-params") || "");
+    let params: URLSearchParams | null = null;
+    try {
+      const raw = window.sessionStorage.getItem("astro-params") || "";
+      params = new URLSearchParams(raw);
+    } catch {
+      setError("Saved parameters are invalid. Go back and fill the form.");
+      return;
+    }
     if (!params.get("lat") || !params.get("lon")) {
       setError("Missing location/setup. Go back and fill the form.");
       return;
     }
     const qs = params.toString();
     fetch(`/api/recommend?${qs}`, { cache: "no-store" })
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`Request failed: ${r.status}`))))
       .then(setData)
       .catch((e) => setError(String(e)));
   }, []);
