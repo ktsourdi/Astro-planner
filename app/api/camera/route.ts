@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import localCameras from "@/data/cameras.json";
 
 type CameraSpec = {
   brand: string;
@@ -58,9 +59,31 @@ export async function GET(req: NextRequest) {
   if (!query) {
     return NextResponse.json({ items: [] }, { status: 200 });
   }
-  const specs = await fetchCameraSpecsFromWeb();
+  let specs: CameraSpec[] = [];
+  try {
+    specs = await fetchCameraSpecsFromWeb();
+  } catch (err) {
+    // ignore and fall back to local
+  }
+  // Merge in local cameras and de-duplicate by brand+model
+  const merged: CameraSpec[] = (() => {
+    const byKey = new Map<string, CameraSpec>();
+    const add = (s: CameraSpec) => {
+      const key = `${s.brand} ${s.model}`.toLowerCase();
+      if (!byKey.has(key)) byKey.set(key, s);
+    };
+    for (const s of specs) add(s);
+    for (const s of localCameras as any[]) add({
+      brand: s.brand,
+      model: s.model,
+      sensorW: Number(s.sensorW),
+      sensorH: Number(s.sensorH),
+      pixelUm: s.pixelUm ?? null,
+    });
+    return Array.from(byKey.values());
+  })();
   const nq = normalize(query);
-  const scored = specs
+  const scored = merged
     .map((s) => {
       const full = `${s.brand} ${s.model}`;
       const nfull = normalize(full);

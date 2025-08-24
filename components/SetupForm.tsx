@@ -151,6 +151,9 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
         <label>Camera model (auto-fill sensor)</label>
         <input type="text" value={cameraQuery} onChange={(e) => setCameraQuery(e.target.value)} placeholder="e.g. Nikon D7500, Sony a7 III" />
         {isFetchingCameras && cameraQuery.trim().length >= 2 && <div className="mt-3" style={{ color: "#666" }}>Searching cameras…</div>}
+        {!isFetchingCameras && cameraQuery.trim().length >= 2 && cameraSuggestions.length === 0 && (
+          <div className="mt-3" style={{ color: "#666" }}>No cameras found</div>
+        )}
         {cameraSuggestions.length > 0 && (
           <ul className="mt-3" style={{ padding: 8, border: "1px solid #ddd", borderRadius: 4, listStyle: "none", maxHeight: 180, overflowY: "auto" }}>
             {cameraSuggestions.map((s) => (
