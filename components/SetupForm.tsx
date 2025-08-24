@@ -1,13 +1,15 @@
 "use client";
 
 import targets from "@/data/targets.json";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Props = {
   initialLat?: number | "";
   initialLon?: number | "";
 };
+
+type PlaceSuggestion = { place_id: string; display_name: string; lat: string; lon: string };
 
 export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
   const router = useRouter();
@@ -51,15 +53,73 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     }
   }
 
+  const [placeQuery, setPlaceQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [isFetchingPlaces, setIsFetchingPlaces] = useState(false);
+
+  useEffect(() => {
+    if (placeQuery.trim().length < 3) {
+      setSuggestions([]);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setIsFetchingPlaces(true);
+      fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(placeQuery)}&limit=5`, {
+        headers: { "Accept": "application/json" },
+        signal: controller.signal,
+      })
+        .then((r) => r.json())
+        .then((json) => setSuggestions(Array.isArray(json) ? json : []))
+        .catch(() => {})
+        .finally(() => setIsFetchingPlaces(false));
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [placeQuery]);
+
+  function choosePlace(s: PlaceSuggestion) {
+    update("lat", Number(Number(s.lat).toFixed(4)) as any);
+    update("lon", Number(Number(s.lon).toFixed(4)) as any);
+    setPlaceQuery(s.display_name);
+    setSuggestions([]);
+  }
+
+  function useMyLocation() {
+    if (typeof window !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          update("lat", Number(pos.coords.latitude.toFixed(4)) as any);
+          update("lon", Number(pos.coords.longitude.toFixed(4)) as any);
+        },
+        () => {}
+      );
+    }
+  }
+
   return (
     <form onSubmit={(e) => e.preventDefault()} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-      <div>
-        <label>Latitude</label>
-        <input type="number" step="0.0001" value={form.lat} onChange={(e) => update("lat", Number(e.target.value))} placeholder="e.g., 40.64" />
-      </div>
-      <div>
-        <label>Longitude</label>
-        <input type="number" step="0.0001" value={form.lon} onChange={(e) => update("lon", Number(e.target.value))} placeholder="e.g., 22.94" />
+      <div style={{ gridColumn: "1 / -1" }}>
+        <label>Location</label>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button type="button" onClick={useMyLocation}>Use my location</button>
+          <input type="text" value={placeQuery} onChange={(e) => setPlaceQuery(e.target.value)} placeholder="Search place (city, address, landmark)" />
+        </div>
+        {isFetchingPlaces && placeQuery.trim().length >= 3 && <div style={{ marginTop: 6, color: "#666" }}>Searching…</div>}
+        {suggestions.length > 0 && (
+          <ul style={{ marginTop: 6, padding: 8, border: "1px solid #ddd", borderRadius: 4, listStyle: "none", maxHeight: 180, overflowY: "auto" }}>
+            {suggestions.map((s) => (
+              <li key={s.place_id}>
+                <button type="button" onClick={() => choosePlace(s)} style={{ background: "transparent", border: "none", padding: 6, cursor: "pointer", textAlign: "left", width: "100%" }}>{s.display_name}</button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {(form.lat !== "" && form.lon !== "") && (
+          <p style={{ color: "#666", fontSize: 12, marginTop: 6 }}>Location set</p>
+        )}
       </div>
       <div>
         <label>Sensor width (mm)</label>
