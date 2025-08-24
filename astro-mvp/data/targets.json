@@ -1,0 +1,29 @@
+[
+  {
+    "id": "M31",
+    "name": "Andromeda Galaxy",
+    "type": "galaxy",
+    "ra_hms": "00:42:44",
+    "dec_dms": "+41:16:09",
+    "size_deg": 3.2,
+    "best_months": [8, 9, 10, 11]
+  },
+  {
+    "id": "NGC7000",
+    "name": "North America Nebula",
+    "type": "nebula",
+    "ra_hms": "20:59:17",
+    "dec_dms": "+44:31:44",
+    "size_deg": 2.0,
+    "best_months": [6, 7, 8, 9]
+  },
+  {
+    "id": "M42",
+    "name": "Orion Nebula",
+    "type": "nebula",
+    "ra_hms": "05:35:17",
+    "dec_dms": "-05:23:28",
+    "size_deg": 1.0,
+    "best_months": [11, 12, 1, 2]
+  }
+]
