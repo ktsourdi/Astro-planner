@@ -1,0 +1,7 @@
+[
+  { "brand": "Nikon", "model": "D7500", "sensorW": 23.5, "sensorH": 15.7, "pixelUm": 4.2 },
+  { "brand": "Nikon", "model": "D850", "sensorW": 35.9, "sensorH": 23.9, "pixelUm": 4.35 },
+  { "brand": "Sony", "model": "a7 III", "sensorW": 35.6, "sensorH": 23.8, "pixelUm": 5.94 },
+  { "brand": "Canon", "model": "EOS R6", "sensorW": 35.9, "sensorH": 23.9, "pixelUm": 6.58 },
+  { "brand": "Fujifilm", "model": "X-T4", "sensorW": 23.5, "sensorH": 15.6, "pixelUm": 3.76 }
+]
