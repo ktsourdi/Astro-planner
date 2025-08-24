@@ -10,6 +10,7 @@ type Props = {
 };
 
 type PlaceSuggestion = { place_id: string; display_name: string; lat: string; lon: string };
+type CameraSuggestion = { id: string; name: string; sensorW: number; sensorH: number; pixelUm: number | null };
 
 export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
   const router = useRouter();
@@ -57,6 +58,10 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [isFetchingPlaces, setIsFetchingPlaces] = useState(false);
 
+  const [cameraQuery, setCameraQuery] = useState("");
+  const [cameraSuggestions, setCameraSuggestions] = useState<CameraSuggestion[]>([]);
+  const [isFetchingCameras, setIsFetchingCameras] = useState(false);
+
   useEffect(() => {
     if (placeQuery.trim().length < 3) {
       setSuggestions([]);
@@ -79,6 +84,27 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
       controller.abort();
     };
   }, [placeQuery]);
+
+  useEffect(() => {
+    const q = cameraQuery.trim();
+    if (q.length < 2) {
+      setCameraSuggestions([]);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setIsFetchingCameras(true);
+      fetch(`/api/camera?query=${encodeURIComponent(q)}`, { signal: controller.signal })
+        .then((r) => r.json())
+        .then((json) => setCameraSuggestions(Array.isArray(json?.items) ? json.items : []))
+        .catch(() => {})
+        .finally(() => setIsFetchingCameras(false));
+    }, 250);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [cameraQuery]);
 
   function choosePlace(s: PlaceSuggestion) {
     update("lat", Number(Number(s.lat).toFixed(4)) as any);
@@ -119,6 +145,32 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
         )}
         {(form.lat !== "" && form.lon !== "") && (
           <p className="mt-3" style={{ color: "#666", fontSize: 12 }}>Location set</p>
+        )}
+      </div>
+      <div style={{ gridColumn: "1 / -1" }}>
+        <label>Camera model (auto-fill sensor)</label>
+        <input type="text" value={cameraQuery} onChange={(e) => setCameraQuery(e.target.value)} placeholder="e.g. Nikon D7500, Sony a7 III" />
+        {isFetchingCameras && cameraQuery.trim().length >= 2 && <div className="mt-3" style={{ color: "#666" }}>Searching cameras…</div>}
+        {cameraSuggestions.length > 0 && (
+          <ul className="mt-3" style={{ padding: 8, border: "1px solid #ddd", borderRadius: 4, listStyle: "none", maxHeight: 180, overflowY: "auto" }}>
+            {cameraSuggestions.map((s) => (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCameraQuery(s.name);
+                    setCameraSuggestions([]);
+                    update("sensorW", Number(s.sensorW) as any);
+                    update("sensorH", Number(s.sensorH) as any);
+                    if (s.pixelUm != null) update("pixelUm", Number(s.pixelUm) as any);
+                  }}
+                  style={{ background: "transparent", border: "none", padding: 6, cursor: "pointer", textAlign: "left", width: "100%" }}
+                >
+                  {s.name} — {s.sensorW} × {s.sensorH} mm{(s.pixelUm ? `, ${s.pixelUm} µm` : "")}
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
       <div>
