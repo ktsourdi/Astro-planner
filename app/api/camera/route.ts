@@ -56,6 +56,7 @@ function normalize(str: string): string {
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const query = (searchParams.get("query") || "").trim();
+  console.debug("[api/camera] query", { query });
   if (!query) {
     return NextResponse.json({ items: [] }, { status: 200 });
   }
@@ -63,6 +64,7 @@ export async function GET(req: NextRequest) {
   try {
     specs = await fetchCameraSpecsFromWeb();
   } catch (err) {
+    console.warn("[api/camera] failed to fetch remote specs, falling back to local", err);
     // ignore and fall back to local
   }
   // Merge in local cameras and de-duplicate by brand+model
@@ -104,7 +106,7 @@ export async function GET(req: NextRequest) {
     .slice(0, 10)
     .map((x) => x.s);
 
-  return NextResponse.json(
+  const payload =
     {
       items: scored.map((s) => ({
         id: `${s.brand} ${s.model}`,
@@ -113,8 +115,8 @@ export async function GET(req: NextRequest) {
         sensorH: s.sensorH,
         pixelUm: s.pixelUm ?? null,
       })),
-    },
-    { status: 200 }
-  );
+    };
+  console.debug("[api/camera] returning items", { count: payload.items.length });
+  return NextResponse.json(payload, { status: 200 });
 }
 
