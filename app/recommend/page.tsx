@@ -31,14 +31,14 @@ export default function RecommendPage() {
       .catch((e) => setError(String(e)));
   }, []);
 
-  if (error) return <main style={{ padding: 24 }}>{error}</main>;
-  if (!data) return <main style={{ padding: 24 }}>Loading recommendations…</main>;
+  if (error) return <main className="container" style={{ paddingTop: 24, paddingBottom: 24 }}>{error}</main>;
+  if (!data) return <main className="container" style={{ paddingTop: 24, paddingBottom: 24 }}>Loading recommendations…</main>;
 
   return (
-    <main style={{ maxWidth: 1000, margin: "0 auto", padding: 24 }}>
+    <main className="container" style={{ paddingTop: 24, paddingBottom: 24 }}>
       <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 16 }}>Recommended Targets</h2>
       {data.recommended_targets.length === 0 && <p>No suitable targets found. Adjust your setup.</p>}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+      <div className="grid grid-auto-fill-280" style={{ gap: 16 }}>
         {data.recommended_targets.map((t) => (
           <TargetCard key={t.id} rec={t as any} />
         ))}

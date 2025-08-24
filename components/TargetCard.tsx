@@ -14,8 +14,8 @@ type Props = {
 export default function TargetCard({ rec }: Props) {
   const badge = rec.framing_score >= 0.7 ? "Great framing" : rec.fill_ratio < 0.1 ? "Too small" : null;
   return (
-    <div style={{ border: "1px solid #1f2937", borderRadius: 8, padding: 12, background: "#0e131a" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <div className="card">
+      <div className="row row-wrap row-just-between">
         <div>
           <div style={{ fontWeight: 700 }}>{rec.name} <span style={{ color: "#9ca3af", fontWeight: 400 }}>({rec.id})</span></div>
           <div style={{ color: "#9ca3af", fontSize: 12 }}>{rec.type}</div>

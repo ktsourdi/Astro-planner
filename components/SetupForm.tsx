@@ -100,16 +100,16 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
   }
 
   return (
-    <form onSubmit={(e) => e.preventDefault()} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+    <form onSubmit={(e) => e.preventDefault()} className="grid grid-auto-fit-220" style={{ gap: 12 }}>
       <div style={{ gridColumn: "1 / -1" }}>
         <label>Location</label>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div className="row row-wrap" style={{ gap: 8 }}>
           <button type="button" onClick={useMyLocation}>Use my location</button>
           <input type="text" value={placeQuery} onChange={(e) => setPlaceQuery(e.target.value)} placeholder="Search place (city, address, landmark)" />
         </div>
-        {isFetchingPlaces && placeQuery.trim().length >= 3 && <div style={{ marginTop: 6, color: "#666" }}>Searching…</div>}
+        {isFetchingPlaces && placeQuery.trim().length >= 3 && <div className="mt-3" style={{ color: "#666" }}>Searching…</div>}
         {suggestions.length > 0 && (
-          <ul style={{ marginTop: 6, padding: 8, border: "1px solid #ddd", borderRadius: 4, listStyle: "none", maxHeight: 180, overflowY: "auto" }}>
+          <ul className="mt-3" style={{ padding: 8, border: "1px solid #ddd", borderRadius: 4, listStyle: "none", maxHeight: 180, overflowY: "auto" }}>
             {suggestions.map((s) => (
               <li key={s.place_id}>
                 <button type="button" onClick={() => choosePlace(s)} style={{ background: "transparent", border: "none", padding: 6, cursor: "pointer", textAlign: "left", width: "100%" }}>{s.display_name}</button>
@@ -118,7 +118,7 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
           </ul>
         )}
         {(form.lat !== "" && form.lon !== "") && (
-          <p style={{ color: "#666", fontSize: 12, marginTop: 6 }}>Location set</p>
+          <p className="mt-3" style={{ color: "#666", fontSize: 12 }}>Location set</p>
         )}
       </div>
       <div>
@@ -162,8 +162,7 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
           ))}
         </select>
       </div>
-
-      <div style={{ gridColumn: "1 / -1", display: "flex", gap: 12, marginTop: 8 }}>
+      <div style={{ gridColumn: "1 / -1", display: "flex", gap: 12, marginTop: 8, flexWrap: "wrap" }}>
         <button type="button" onClick={() => persistAndNavigate("recommend")}>Recommend Targets</button>
         <button type="button" disabled={!form.targetId} onClick={() => persistAndNavigate("plan")}>Plan Selected Target</button>
       </div>
