@@ -26,6 +26,8 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     mount: "tracker" as "fixed" | "tracker" | "guided",
     targetId: "",
     date: new Date().toISOString(),
+    minAlt: 10,
+    maxMag: 12,
   });
 
   const targetOptions = useMemo(() => targets.map((t) => ({ id: t.id, name: t.name })), []);
@@ -423,6 +425,32 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
               value={form.date.slice(0, 16)} 
               onChange={(e) => update("date", new Date(e.target.value).toISOString())} 
             />
+          </div>
+
+          <div className="form-group">
+            <label>Minimum Altitude (°) — objects must reach this height</label>
+            <input
+              type="range"
+              min={0}
+              max={40}
+              step={1}
+              value={form.minAlt}
+              onChange={(e) => update("minAlt", Number(e.target.value) as any)}
+            />
+            <div className="text-sm text-muted">Current: {form.minAlt}°</div>
+          </div>
+
+          <div className="form-group">
+            <label>Max Magnitude (faintness cutoff, lower is brighter)</label>
+            <input
+              type="range"
+              min={8}
+              max={15}
+              step={0.5}
+              value={form.maxMag}
+              onChange={(e) => update("maxMag", Number(e.target.value) as any)}
+            />
+            <div className="text-sm text-muted">Current: {form.maxMag}</div>
           </div>
 
           <div className="form-group">
