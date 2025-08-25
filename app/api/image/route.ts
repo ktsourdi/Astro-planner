@@ -3,10 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(req: NextRequest) {
   const name = (req.nextUrl.searchParams.get("name") || "").trim();
   if (!name) {
-    return NextResponse.json({ url: null }, { status: 400 });
+    return new NextResponse("Missing name", { status: 400 });
   }
   const tryTitles = [name];
-  // Handle common prefixes like NGC numbers mapping to names
   if (/^ngc\s*\d+/i.test(name)) {
     tryTitles.push(name.replace(/\s+/g, " ").toUpperCase());
   }
@@ -19,11 +18,12 @@ export async function GET(req: NextRequest) {
       const json: any = await r.json();
       const thumb = json?.thumbnail?.source as string | undefined;
       if (thumb) {
-        return NextResponse.json({ url: thumb }, { status: 200 });
+        // Redirect the browser to the thumbnail URL so <img> can load it directly
+        return NextResponse.redirect(thumb, 302);
       }
     } catch {}
   }
-  return NextResponse.json({ url: null }, { status: 200 });
+  return new NextResponse(null, { status: 204 });
 }
 
 
