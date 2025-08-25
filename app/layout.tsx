@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   const [navOpen, setNavOpen] = useState(false);
@@ -93,7 +94,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         </header>
         
         <div style={{ minHeight: "calc(100vh - 73px)" }}>
-          {children}
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
         </div>
         
         <footer style={{ 

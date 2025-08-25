@@ -145,7 +145,7 @@ function computeVisibilityWindow(t: Target, lat: number, lon: number, atIso?: st
 }
 
 async function fetchOpenNgcTargets(maxItems = 800, maxMag = 12): Promise<Target[]> {
-  const url = "https://raw.githubusercontent.com/mattiaverga/OpenNGC/master/NGC.csv";
+  const url = process.env.NEXT_PUBLIC_OPENNGC_URL || "https://raw.githubusercontent.com/mattiaverga/OpenNGC/master/NGC.csv";
   try {
     const resp = await fetch(url, { next: { revalidate: 60 * 60 * 24 } });
     if (!resp.ok) throw new Error(`OpenNGC fetch failed ${resp.status}`);
@@ -238,6 +238,14 @@ export async function GET(req: NextRequest) {
   const fovWidthDeg = degreesFromSensorAndFocal(p.sensorW, p.focalMm);
   const fovHeightDeg = degreesFromSensorAndFocal(p.sensorH, p.focalMm);
   const fovShortDeg = Math.min(fovWidthDeg, fovHeightDeg);
+  
+  // Prevent division by zero
+  if (fovShortDeg <= 0) {
+    return NextResponse.json(
+      { error: "Invalid field of view calculated. Please check sensor and focal length values." },
+      { status: 400 }
+    );
+  }
 
   const currentMonth = monthFromIso(p.date);
 

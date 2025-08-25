@@ -33,7 +33,9 @@ export default function RecommendPage() {
           return resp;
         } catch (err) {
           lastError = err;
-          console.warn("[recommend] fetch attempt failed", { input: String(input), attempt, err });
+          if (process.env.NODE_ENV === "development") {
+            console.warn("[recommend] fetch attempt failed", { input: String(input), attempt, err });
+          }
           if (attempt <= retries) {
             await new Promise((r) => setTimeout(r, 200 * attempt));
           }
@@ -44,10 +46,31 @@ export default function RecommendPage() {
 
     let params: URLSearchParams | null = null;
     try {
-      const raw = window.sessionStorage.getItem("astro-params") || "";
-      console.debug("[recommend] loaded session params raw", { raw });
+      // Try to get params from sessionStorage with fallback
+      let raw = "";
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        try {
+          raw = window.sessionStorage.getItem("astro-params") || "";
+        } catch (e) {
+          // SessionStorage might be blocked or unavailable
+          console.warn("SessionStorage unavailable:", e);
+        }
+      }
+      
+      // If no sessionStorage data, check URL params as fallback
+      if (!raw) {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has("lat") && urlParams.has("lon")) {
+          raw = urlParams.toString();
+        }
+      }
+      
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[recommend] loaded session params raw", { raw });
+      }
       params = new URLSearchParams(raw);
-    } catch {
+    } catch (err) {
+      console.error("Failed to parse parameters:", err);
       setError("Saved parameters are invalid. Go back and fill the form.");
       return;
     }
@@ -57,11 +80,15 @@ export default function RecommendPage() {
     }
     const qs = params.toString();
     const url = `/api/recommend?${qs}`;
-    console.debug("[recommend] fetching recommendations", { url });
+    if (process.env.NODE_ENV === "development") {
+      console.debug("[recommend] fetching recommendations", { url });
+    }
     fetchWithRetry(url, { cache: "no-store" }, 2)
       .then((r) => r.json())
       .then((json) => {
-        console.debug("[recommend] received recommendations", { count: Array.isArray(json?.recommended_targets) ? json.recommended_targets.length : undefined });
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[recommend] received recommendations", { count: Array.isArray(json?.recommended_targets) ? json.recommended_targets.length : undefined });
+        }
         setData(json);
       })
       .catch((e) => {

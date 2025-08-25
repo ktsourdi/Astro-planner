@@ -17,7 +17,7 @@ async function fetchCameraSpecsFromWeb(): Promise<CameraSpec[]> {
   if (cachedSpecs && now - lastFetchTimeMs < 1000 * 60 * 60 * 24) {
     return cachedSpecs;
   }
-  const url = "https://raw.githubusercontent.com/openMVG/CameraSensorSizeDatabase/master/sensor_database.csv";
+  const url = process.env.NEXT_PUBLIC_CAMERA_DB_URL || "https://raw.githubusercontent.com/openMVG/CameraSensorSizeDatabase/master/sensor_database.csv";
   const resp = await fetch(url, { next: { revalidate: 60 * 60 * 24 } });
   if (!resp.ok) {
     throw new Error(`Failed to fetch camera sensor database: ${resp.status}`);
@@ -56,7 +56,9 @@ function normalize(str: string): string {
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const query = (searchParams.get("query") || "").trim();
-  console.debug("[api/camera] query", { query });
+  if (process.env.NODE_ENV === "development") {
+    console.debug("[api/camera] query", { query });
+  }
   if (!query) {
     return NextResponse.json({ items: [] }, { status: 200 });
   }
@@ -64,7 +66,9 @@ export async function GET(req: NextRequest) {
   try {
     specs = await fetchCameraSpecsFromWeb();
   } catch (err) {
-    console.warn("[api/camera] failed to fetch remote specs, falling back to local", err);
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[api/camera] failed to fetch remote specs, falling back to local", err);
+    }
     // ignore and fall back to local
   }
   // Merge in local cameras and de-duplicate by brand+model
@@ -116,7 +120,9 @@ export async function GET(req: NextRequest) {
         pixelUm: s.pixelUm ?? null,
       })),
     };
-  console.debug("[api/camera] returning items", { count: payload.items.length });
+  if (process.env.NODE_ENV === "development") {
+    console.debug("[api/camera] returning items", { count: payload.items.length });
+  }
   return NextResponse.json(payload, { status: 200 });
 }
 
