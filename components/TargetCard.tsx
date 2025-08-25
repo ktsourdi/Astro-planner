@@ -88,7 +88,7 @@ export default function TargetCard({ rec }: Props) {
       }} />
 
       {/* Image Section */}
-      {rec.image_url && (
+      {(rec.image_url || true) && (
         <div style={{
           position: "relative",
           marginTop: "-20px",
@@ -100,7 +100,7 @@ export default function TargetCard({ rec }: Props) {
           borderRadius: "var(--radius-lg) var(--radius-lg) 0 0"
         }}>
           <img 
-            src={rec.image_url}
+            src={rec.image_url || `/api/image?name=${encodeURIComponent(rec.name)}`}
             alt={rec.name}
             style={{
               width: "100%",
