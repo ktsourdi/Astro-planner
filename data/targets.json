@@ -6,7 +6,9 @@
     "ra_hms": "00:42:44",
     "dec_dms": "+41:16:09",
     "size_deg": 3.2,
-    "best_months": [8, 9, 10, 11]
+    "best_months": [8, 9, 10, 11],
+    "image_url": "https://cdn.eso.org/images/screen/eso1909a.jpg",
+    "description": "The nearest major galaxy to the Milky Way, visible to the naked eye"
   },
   {
     "id": "NGC7000",
@@ -15,7 +17,9 @@
     "ra_hms": "20:59:17",
     "dec_dms": "+44:31:44",
     "size_deg": 2.0,
-    "best_months": [6, 7, 8, 9]
+    "best_months": [6, 7, 8, 9],
+    "image_url": "https://cdn.eso.org/images/screen/eso1233a.jpg",
+    "description": "An emission nebula in Cygnus, resembling the North American continent"
   },
   {
     "id": "M42",
@@ -24,7 +28,9 @@
     "ra_hms": "05:35:17",
     "dec_dms": "-05:23:28",
     "size_deg": 1.0,
-    "best_months": [11, 12, 1, 2]
+    "best_months": [11, 12, 1, 2],
+    "image_url": "https://cdn.eso.org/images/screen/eso1006a.jpg",
+    "description": "A stellar nursery where new stars are being born, visible to the naked eye"
   },
   {
     "id": "M45",
@@ -33,7 +39,9 @@
     "ra_hms": "03:47:00",
     "dec_dms": "+24:07:00",
     "size_deg": 2.0,
-    "best_months": [10, 11, 12, 1]
+    "best_months": [10, 11, 12, 1],
+    "image_url": "https://cdn.eso.org/images/screen/eso1325a.jpg",
+    "description": "The Seven Sisters, an open star cluster with reflection nebulae"
   },
   {
     "id": "M8",
@@ -42,6 +50,8 @@
     "ra_hms": "18:03:37",
     "dec_dms": "-24:23:12",
     "size_deg": 1.0,
-    "best_months": [6, 7, 8]
+    "best_months": [6, 7, 8],
+    "image_url": "https://apod.nasa.gov/apod/image/2308/M8-Lagoon-Nebula-1024.jpg",
+    "description": "A giant interstellar cloud with embedded open cluster NGC 6530"
   }
 ]

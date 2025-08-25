@@ -21,6 +21,8 @@ type Target = {
   type: string;
   size_deg: number;
   best_months?: number[];
+  image_url?: string;
+  description?: string;
 };
 
 function degreesFromSensorAndFocal(sensorMm: number, focalMm: number): number {
@@ -84,6 +86,8 @@ export async function GET(req: NextRequest) {
       framing_score: Number(framingScore.toFixed(3)),
       score: Number(baseScore.toFixed(3)),
       suggested_capture: suggested,
+      image_url: t.image_url,
+      description: t.description,
     };
   });
 

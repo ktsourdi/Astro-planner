@@ -8,6 +8,8 @@ type Props = {
     score: number;
     window?: { start_utc: string; end_utc: string; alt_max_deg: number };
     suggested_capture: { sub_exposure_s: number; gain: number; subs: number; notes: string };
+    image_url?: string;
+    description?: string;
   };
 };
 
@@ -42,6 +44,30 @@ export default function TargetCard({ rec }: Props) {
     });
   };
 
+  // Generate simple visibility curve data points
+  const generateVisibilityCurve = () => {
+    if (!rec.window) return null;
+    
+    const points = [];
+    const startTime = new Date(rec.window.start_utc).getTime();
+    const endTime = new Date(rec.window.end_utc).getTime();
+    const duration = endTime - startTime;
+    const maxAlt = rec.window.alt_max_deg;
+    
+    // Generate 5 points for a simple curve
+    for (let i = 0; i <= 4; i++) {
+      const progress = i / 4;
+      const time = startTime + duration * progress;
+      // Simple parabolic curve peaking in the middle
+      const altitude = maxAlt * (1 - Math.pow(2 * progress - 1, 2));
+      points.push({ x: progress * 100, y: altitude });
+    }
+    
+    return points;
+  };
+
+  const visibilityCurve = generateVisibilityCurve();
+
   return (
     <div className="card" style={{ 
       display: "flex", 
@@ -57,11 +83,62 @@ export default function TargetCard({ rec }: Props) {
         left: 0,
         right: 0,
         height: "3px",
-        background: `linear-gradient(90deg, var(--color-accent) ${rec.score * 100}%, var(--color-bg-secondary) ${rec.score * 100}%)`
+        background: `linear-gradient(90deg, var(--color-accent) ${rec.score * 100}%, var(--color-bg-secondary) ${rec.score * 100}%)`,
+        zIndex: 2
       }} />
 
+      {/* Image Section */}
+      {rec.image_url && (
+        <div style={{
+          position: "relative",
+          marginTop: "-20px",
+          marginLeft: "-20px",
+          marginRight: "-20px",
+          marginBottom: "var(--space-4)",
+          height: "200px",
+          overflow: "hidden",
+          borderRadius: "var(--radius-lg) var(--radius-lg) 0 0"
+        }}>
+          <img 
+            src={rec.image_url}
+            alt={rec.name}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              filter: "brightness(0.9)"
+            }}
+            onError={(e) => {
+              // Fallback to placeholder if image fails to load
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          {/* Gradient overlay for better text readability */}
+          <div style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: "80px",
+            background: "linear-gradient(to top, var(--color-bg-card) 0%, transparent 100%)"
+          }} />
+          {/* Badge overlay on image */}
+          {badge && (
+            <div style={{
+              position: "absolute",
+              top: "var(--space-3)",
+              right: "var(--space-3)"
+            }}>
+              <span className={`badge ${badge.class}`}>
+                {badge.text}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Header */}
-      <div style={{ marginBottom: "var(--space-4)" }}>
+      <div style={{ marginBottom: "var(--space-3)" }}>
         <div style={{ 
           display: "flex", 
           alignItems: "flex-start", 
@@ -89,12 +166,23 @@ export default function TargetCard({ rec }: Props) {
               {rec.type} • {rec.id}
             </div>
           </div>
-          {badge && (
+          {!rec.image_url && badge && (
             <span className={`badge ${badge.class}`}>
               {badge.text}
             </span>
           )}
         </div>
+        {rec.description && (
+          <p style={{
+            fontSize: "var(--font-size-sm)",
+            color: "var(--color-text-secondary)",
+            marginTop: "var(--space-2)",
+            marginBottom: 0,
+            lineHeight: 1.5
+          }}>
+            {rec.description}
+          </p>
+        )}
       </div>
 
       {/* Stats Grid */}
@@ -178,6 +266,64 @@ export default function TargetCard({ rec }: Props) {
             <span>🕐</span>
             <span>Visibility Window</span>
           </div>
+          
+          {/* Visibility Graph */}
+          {visibilityCurve && (
+            <div style={{ 
+              marginBottom: "var(--space-2)",
+              padding: "var(--space-2)",
+              background: "var(--color-bg-secondary)",
+              borderRadius: "var(--radius-sm)"
+            }}>
+              <svg 
+                width="100%" 
+                height="60" 
+                viewBox="0 0 100 60"
+                style={{ display: "block" }}
+              >
+                {/* Grid lines */}
+                <line x1="0" y1="50" x2="100" y2="50" stroke="var(--color-border)" strokeWidth="0.5" opacity="0.3" />
+                <line x1="0" y1="30" x2="100" y2="30" stroke="var(--color-border)" strokeWidth="0.5" opacity="0.3" />
+                <line x1="0" y1="10" x2="100" y2="10" stroke="var(--color-border)" strokeWidth="0.5" opacity="0.3" />
+                
+                {/* Altitude curve */}
+                <path
+                  d={`M ${visibilityCurve.map((p, i) => 
+                    `${p.x} ${50 - (p.y / rec.window!.alt_max_deg) * 40}`
+                  ).join(' L ')}`}
+                  fill="none"
+                  stroke="var(--color-accent)"
+                  strokeWidth="2"
+                />
+                
+                {/* Fill under curve */}
+                <path
+                  d={`M 0 50 ${visibilityCurve.map((p, i) => 
+                    `L ${p.x} ${50 - (p.y / rec.window!.alt_max_deg) * 40}`
+                  ).join(' ')} L 100 50 Z`}
+                  fill="var(--color-accent)"
+                  opacity="0.1"
+                />
+                
+                {/* Peak indicator */}
+                <circle 
+                  cx="50" 
+                  cy={50 - 40} 
+                  r="3" 
+                  fill="var(--color-accent)"
+                />
+                
+                {/* Labels */}
+                <text x="50" y="58" fontSize="8" fill="var(--color-text-muted)" textAnchor="middle">
+                  Time →
+                </text>
+                <text x="2" y="8" fontSize="8" fill="var(--color-text-muted)">
+                  {Math.round(rec.window.alt_max_deg)}°
+                </text>
+              </svg>
+            </div>
+          )}
+          
           <div style={{ 
             fontSize: "var(--font-size-sm)", 
             color: "var(--color-text-secondary)"
