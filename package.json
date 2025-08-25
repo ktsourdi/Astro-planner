@@ -13,7 +13,7 @@
     "dayjs": "1.11.11",
     "geodesy": "2.4.0",
     "leaflet": "^1.9.4",
-    "next": "14.2.5",
+    "next": "14.2.32",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-leaflet": "^4.2.1",

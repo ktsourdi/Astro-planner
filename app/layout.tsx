@@ -17,6 +17,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Astronomy Planner - Astrophotography Session Planning</title>
         <meta name="description" content="Plan your perfect astrophotography session with gain-based recommendations, target visibility, and optimal capture settings" />
+        <meta name="keywords" content="astrophotography, astronomy, deep sky, planning, telescope, camera, imaging" />
+        <meta property="og:title" content="Astronomy Planner - Astrophotography Session Planning" />
+        <meta property="og:description" content="Professional astrophotography planning with AI-powered recommendations" />
+        <meta property="og:type" content="website" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="theme-color" content="#0f172a" />
+        <link rel="icon" href="/favicon.ico" />
       </head>
       <body style={{ 
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif", 

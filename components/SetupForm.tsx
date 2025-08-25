@@ -255,7 +255,7 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
       {activeSection === "location" && (
         <div className="animate-fadeIn">
           <div className="form-group">
-            <label style={{ fontSize: "var(--font-size-base)", marginBottom: "var(--space-3)" }}>
+            <label htmlFor="location-search" style={{ fontSize: "var(--font-size-base)", marginBottom: "var(--space-3)" }}>
               🌍 Observation Location
             </label>
             <div style={{ 
@@ -265,10 +265,12 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
               marginBottom: "var(--space-3)"
             }}>
               <input 
+                id="location-search"
                 type="text" 
                 value={placeQuery} 
                 onChange={(e) => setPlaceQuery(e.target.value)} 
                 placeholder="Search city, address, or landmark..." 
+                aria-label="Search for observation location"
               />
               <button 
                 type="button" 
