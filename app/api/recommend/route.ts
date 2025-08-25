@@ -50,6 +50,22 @@ function monthFromIso(dateIso?: string): number {
   return m;
 }
 
+function localMonthAtLongitude(dateIso: string | undefined, lonDeg: number): number {
+  // Approximate local time from longitude: 4 minutes per degree eastwards
+  const base = dateIso ? new Date(dateIso) : new Date();
+  const offsetMinutes = lonDeg * 4; // can be fractional
+  const localMs = base.getTime() + offsetMinutes * 60 * 1000;
+  const local = new Date(localMs);
+  return local.getUTCMonth() + 1; // 1..12
+}
+
+function rotateMonthsForSouthernHemisphere(months: number[] | undefined, latDeg: number): number[] | undefined {
+  if (!months || months.length === 0) return months;
+  if (latDeg >= 0) return months;
+  // Rotate by +6 months for southern hemisphere season flip
+  return months.map((m) => ((m + 5) % 12) + 1);
+}
+
 function parseHmsToHours(hms: string): number {
   const [h, m, s] = hms.split(":").map(Number);
   const sign = 1;
@@ -239,7 +255,8 @@ export async function GET(req: NextRequest) {
   const fovHeightDeg = degreesFromSensorAndFocal(p.sensorH, p.focalMm);
   const fovShortDeg = Math.min(fovWidthDeg, fovHeightDeg);
 
-  const currentMonth = monthFromIso(p.date);
+  // Use month based on local time at observer longitude (approximation)
+  const currentMonth = localMonthAtLongitude(p.date, p.lon);
 
   // Merge local curated targets with a dynamic OpenNGC subset (cached by Vercel for a day)
   const dynamicTargets: Target[] = await fetchOpenNgcTargets(undefined as any, (p as any).maxMag ?? 12).catch(() => []);
@@ -257,7 +274,8 @@ export async function GET(req: NextRequest) {
   const items = (sourceTargets as Target[]).map((t) => {
     const fillRatio = t.size_deg / fovShortDeg;
     const framingScore = computeFramingScore(fillRatio);
-    const monthBoost = t.best_months?.includes(currentMonth) ? 0.15 : 0;
+    const effectiveBestMonths = rotateMonthsForSouthernHemisphere(t.best_months, p.lat);
+    const monthBoost = effectiveBestMonths?.includes(currentMonth) ? 0.15 : 0;
     const baseScore = framingScore + monthBoost;
 
     // very rough exposure heuristics by mount
@@ -269,7 +287,7 @@ export async function GET(req: NextRequest) {
       notes: p.mount === "guided" ? "Guided mount: longer subs OK" : p.mount === "tracker" ? "Tracker: moderate subs recommended" : "Fixed mount: keep subs short",
     };
 
-    const window = computeVisibilityWindow(t, p.lat, p.lon, p.date, (p as any).minAlt ?? 20);
+    const window = computeVisibilityWindow(t, p.lat, p.lon, p.date, p.minAlt);
 
     return {
       id: t.id,
@@ -310,6 +328,9 @@ export async function GET(req: NextRequest) {
       fNum: p.fNum,
       mount: p.mount,
       date: p.date ?? new Date().toISOString(),
+      time_basis: "local_from_longitude",
+      hemisphere: p.lat < 0 ? "southern" : "northern",
+      minAlt: p.minAlt,
     },
     recommended_targets: recommended,
     filtered_out_examples: items
