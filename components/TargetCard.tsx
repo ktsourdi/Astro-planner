@@ -422,6 +422,33 @@ export default function TargetCard({ rec }: Props) {
             💡 {rec.suggested_capture.notes}
           </div>
         )}
+
+        {/* External Links */}
+        <div style={{
+          display: "flex",
+          gap: "var(--space-3)",
+          marginTop: "var(--space-3)",
+          flexWrap: "wrap"
+        }}>
+          <a
+            href={`https://stellarium-web.org/skysource/${encodeURIComponent(rec.id)}`}
+            target="_blank"
+            rel="noreferrer"
+            className="btn-ghost"
+            style={{ textDecoration: "none", fontSize: "var(--font-size-sm)" }}
+          >
+            🗺️ View in sky map
+          </a>
+          <a
+            href={`https://simbad.u-strasbg.fr/simbad/sim-basic?Ident=${encodeURIComponent(rec.id)}`}
+            target="_blank"
+            rel="noreferrer"
+            className="btn-ghost"
+            style={{ textDecoration: "none", fontSize: "var(--font-size-sm)" }}
+          >
+            📚 SIMBAD
+          </a>
+        </div>
       </div>
     </div>
   );
