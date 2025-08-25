@@ -109,8 +109,14 @@ export default function TargetCard({ rec }: Props) {
               filter: "brightness(0.9)"
             }}
             onError={(e) => {
-              // Fallback to placeholder if image fails to load
-              (e.target as HTMLImageElement).style.display = 'none';
+              const img = e.target as HTMLImageElement;
+              // Try fallback once via our proxy; hide only if that also fails
+              if (!img.dataset.fallback) {
+                img.dataset.fallback = "1";
+                img.src = `/api/image?name=${encodeURIComponent(rec.name)}`;
+              } else {
+                img.style.display = 'none';
+              }
             }}
           />
           {/* Gradient overlay for better text readability */}
