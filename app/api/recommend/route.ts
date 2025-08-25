@@ -14,7 +14,7 @@ const querySchema = z.object({
   mount: z.enum(["fixed", "tracker", "guided"]).default("tracker"),
   date: z.string().datetime().optional(),
   targetId: z.string().optional(),
-  minAlt: z.coerce.number().min(0).max(89).default(20).optional(),
+  minAlt: z.coerce.number().min(0).max(89).default(10).optional(),
   maxMag: z.coerce.number().min(-10).max(20).default(12).optional(),
 });
 
@@ -103,12 +103,12 @@ function altitudeDegreesAt(date: Date, latDeg: number, lonDeg: number, raHours: 
   return toDegrees(alt);
 }
 
-function computeVisibilityWindow(t: Target, lat: number, lon: number, atIso?: string, minAlt = 20) {
+function computeVisibilityWindow(t: Target, lat: number, lon: number, atIso?: string, minAlt = 10) {
   const date = atIso ? new Date(atIso) : new Date();
   let times = SunCalc.getTimes(date, lat, lon) as any;
   // Prefer astronomical night, fall back to sunset/sunrise if needed
-  const start = (times.night as Date) || (times.sunset as Date);
-  const end = (times.nightEnd as Date) || (times.sunrise as Date);
+  const start = (times.night as Date) || (times.dusk as Date) || (times.sunset as Date);
+  const end = (times.nightEnd as Date) || (times.dawn as Date) || (times.sunrise as Date);
   if (!start || !end || !(start instanceof Date) || !(end instanceof Date) || start >= end) {
     return null;
   }
@@ -116,7 +116,7 @@ function computeVisibilityWindow(t: Target, lat: number, lon: number, atIso?: st
   const raH = parseHmsToHours(t.ra_hms);
   const decD = parseDmsToDegrees(t.dec_dms);
 
-  const stepMinutes = 30; // sampling step
+  const stepMinutes = 20; // sampling step
   let maxAlt = -90;
   let maxAltTime: Date | null = null;
   let firstVisible: Date | null = null;
@@ -279,11 +279,19 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  const recommended = items
+  let recommended = items
     .filter((i) => i.framing_score > 0.15)
-    .filter((i) => i.window) // only show targets visible tonight at this location
+    .filter((i) => i.window)
     .sort((a, b) => b.score - a.score)
     .slice(0, 20);
+
+  // Fallback: if nothing is visible by current thresholds, show best framing regardless of window
+  if (recommended.length === 0) {
+    recommended = items
+      .filter((i) => i.framing_score > 0.15)
+      .sort((a, b) => b.framing_score - a.framing_score)
+      .slice(0, 10);
+  }
 
   const payload = {
     setup: {
