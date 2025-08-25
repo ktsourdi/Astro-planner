@@ -243,10 +243,16 @@ export async function GET(req: NextRequest) {
 
   // Merge local curated targets with a dynamic OpenNGC subset (cached by Vercel for a day)
   const dynamicTargets: Target[] = await fetchOpenNgcTargets(undefined as any, (p as any).maxMag ?? 12).catch(() => []);
-  const sourceTargets: Target[] = [
-    ...(localTargets as unknown as Target[]),
-    ...dynamicTargets,
-  ];
+  // Merge with preference for curated local targets when IDs collide
+  const normalizeKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const byKey = new Map<string, Target>();
+  for (const t of dynamicTargets) {
+    byKey.set(normalizeKey(t.id || t.name), t);
+  }
+  for (const t of (localTargets as unknown as Target[])) {
+    byKey.set(normalizeKey(t.id || t.name), t); // override with curated (has images/descriptions)
+  }
+  const sourceTargets: Target[] = Array.from(byKey.values());
 
   const items = (sourceTargets as Target[]).map((t) => {
     const fillRatio = t.size_deg / fovShortDeg;
