@@ -15,7 +15,20 @@ type CameraSuggestion = { id: string; name: string; sensorW: number; sensorH: nu
 export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
   const router = useRouter();
   const [activeSection, setActiveSection] = useState<"location" | "equipment" | "settings">("location");
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    lat: number | "";
+    lon: number | "";
+    sensorW: number;
+    sensorH: number;
+    pixelUm: number;
+    focalMm: number;
+    fNum: number;
+    mount: "fixed" | "tracker" | "guided";
+    targetId: string;
+    date: string;
+    minAlt: number;
+    maxMag: number;
+  }>({
     lat: initialLat,
     lon: initialLon,
     sensorW: 23.5,
@@ -23,7 +36,7 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     pixelUm: 3.76,
     focalMm: 200,
     fNum: 2.8,
-    mount: "tracker" as "fixed" | "tracker" | "guided",
+    mount: "tracker",
     targetId: "",
     date: new Date().toISOString(),
     minAlt: 10,
@@ -42,7 +55,9 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
       const v = (form as any)[k];
       if (v !== "" && v != null) p.set(String(k), String(v));
     });
-    console.debug("[setup] built params", Object.fromEntries(p.entries()));
+    if (process.env.NODE_ENV === "development") {
+      console.debug("[setup] built params", Object.fromEntries(p.entries()));
+    }
     return p;
   }
 
@@ -50,15 +65,26 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     const params = toParams();
     if (target === "plan" && !form.targetId) return;
     const raw = params.toString();
-    console.debug("[setup] saving session params", { raw });
-    sessionStorage.setItem("astro-params", raw);
+    
+    // Try to save to sessionStorage, but don't fail if unavailable
+    try {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        sessionStorage.setItem("astro-params", raw);
+      }
+    } catch (e) {
+      console.warn("Could not save to sessionStorage:", e);
+    }
+    
     if (target === "plan") {
       const qs = params.toString();
       const url = `/api/plan?${qs}`;
-      console.debug("[setup] opening plan", { url });
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[setup] opening plan", { url });
+      }
       window.open(url, "_blank");
     } else {
-      router.push("/recommend");
+      // Pass params in URL as fallback
+      router.push(`/recommend?${raw}`);
     }
   }
 
@@ -78,19 +104,26 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     const controller = new AbortController();
     const timer = setTimeout(() => {
       setIsFetchingPlaces(true);
-      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(placeQuery)}&limit=5`;
-      console.debug("[setup] fetching places", { url });
+      const nominatimUrl = process.env.NEXT_PUBLIC_NOMINATIM_API_URL || 'https://nominatim.openstreetmap.org';
+      const url = `${nominatimUrl}/search?format=jsonv2&q=${encodeURIComponent(placeQuery)}&limit=5`;
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[setup] fetching places", { url });
+      }
       fetch(url, {
         headers: { "Accept": "application/json" },
         signal: controller.signal,
       })
         .then((r) => r.json())
         .then((json) => {
-          console.debug("[setup] places response", { count: Array.isArray(json) ? json.length : undefined });
+          if (process.env.NODE_ENV === "development") {
+            console.debug("[setup] places response", { count: Array.isArray(json) ? json.length : undefined });
+          }
           setSuggestions(Array.isArray(json) ? json : []);
         })
         .catch((e) => {
-          console.warn("[setup] places fetch error", e);
+          if (process.env.NODE_ENV === "development") {
+            console.warn("[setup] places fetch error", e);
+          }
         })
         .finally(() => setIsFetchingPlaces(false));
     }, 300);
@@ -110,15 +143,21 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     const timer = setTimeout(() => {
       setIsFetchingCameras(true);
       const url = `/api/camera?query=${encodeURIComponent(q)}`;
-      console.debug("[setup] fetching cameras", { url });
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[setup] fetching cameras", { url });
+      }
       fetch(url, { signal: controller.signal })
         .then((r) => r.json())
         .then((json) => {
-          console.debug("[setup] cameras response", { count: Array.isArray(json?.items) ? json.items.length : undefined });
+          if (process.env.NODE_ENV === "development") {
+            console.debug("[setup] cameras response", { count: Array.isArray(json?.items) ? json.items.length : undefined });
+          }
           setCameraSuggestions(Array.isArray(json?.items) ? json.items : []);
         })
         .catch((e) => {
-          console.warn("[setup] cameras fetch error", e);
+          if (process.env.NODE_ENV === "development") {
+            console.warn("[setup] cameras fetch error", e);
+          }
         })
         .finally(() => setIsFetchingCameras(false));
     }, 250);
@@ -129,8 +168,8 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
   }, [cameraQuery]);
 
   function choosePlace(s: PlaceSuggestion) {
-    update("lat", Number(Number(s.lat).toFixed(4)) as any);
-    update("lon", Number(Number(s.lon).toFixed(4)) as any);
+    update("lat", Number(Number(s.lat).toFixed(4)));
+    update("lon", Number(Number(s.lon).toFixed(4)));
     setPlaceQuery("");
     setSuggestions([]);
   }
@@ -139,10 +178,12 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     if (typeof window !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          update("lat", Number(pos.coords.latitude.toFixed(4)) as any);
-          update("lon", Number(pos.coords.longitude.toFixed(4)) as any);
+          update("lat", Number(pos.coords.latitude.toFixed(4)));
+          update("lon", Number(pos.coords.longitude.toFixed(4)));
         },
-        () => {}
+        (error) => {
+          console.error("Geolocation error:", error.message);
+        }
       );
     }
   }
@@ -307,9 +348,9 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
                       onClick={() => {
                         setCameraQuery(s.name);
                         setCameraSuggestions([]);
-                        update("sensorW", Number(s.sensorW) as any);
-                        update("sensorH", Number(s.sensorH) as any);
-                        if (s.pixelUm != null) update("pixelUm", Number(s.pixelUm) as any);
+                        update("sensorW", Number(s.sensorW));
+                        update("sensorH", Number(s.sensorH));
+                        if (s.pixelUm != null) update("pixelUm", Number(s.pixelUm));
                       }}
                     >
                       <div style={{ fontWeight: 500 }}>{s.name}</div>
@@ -333,8 +374,13 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
               <input 
                 type="number" 
                 step="0.1" 
+                min="1"
+                max="100"
                 value={form.sensorW} 
-                onChange={(e) => update("sensorW", Number(e.target.value))} 
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  if (val > 0) update("sensorW", val);
+                }} 
               />
             </div>
             <div className="form-group">
@@ -342,8 +388,13 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
               <input 
                 type="number" 
                 step="0.1" 
+                min="1"
+                max="100"
                 value={form.sensorH} 
-                onChange={(e) => update("sensorH", Number(e.target.value))} 
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  if (val > 0) update("sensorH", val);
+                }} 
               />
             </div>
             <div className="form-group">
@@ -351,8 +402,13 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
               <input 
                 type="number" 
                 step="0.01" 
+                min="0.1"
+                max="50"
                 value={form.pixelUm} 
-                onChange={(e) => update("pixelUm", Number(e.target.value))} 
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  if (val > 0) update("pixelUm", val);
+                }} 
               />
             </div>
           </div>
@@ -367,8 +423,13 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
               <input 
                 type="number" 
                 step="1" 
+                min="10"
+                max="5000"
                 value={form.focalMm} 
-                onChange={(e) => update("focalMm", Number(e.target.value))} 
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  if (val > 0) update("focalMm", val);
+                }} 
               />
             </div>
             <div className="form-group">
@@ -376,8 +437,13 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
               <input 
                 type="number" 
                 step="0.1" 
+                min="0.5"
+                max="32"
                 value={form.fNum} 
-                onChange={(e) => update("fNum", Number(e.target.value))} 
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  if (val > 0) update("fNum", val);
+                }} 
               />
             </div>
           </div>
@@ -398,7 +464,7 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
                 <button
                   key={mountType}
                   type="button"
-                  onClick={() => update("mount", mountType as any)}
+                  onClick={() => update("mount", mountType as "fixed" | "tracker" | "guided")}
                   style={{
                     padding: "var(--space-4)",
                     background: form.mount === mountType ? "var(--color-accent-bg)" : "var(--color-bg-secondary)",
@@ -435,7 +501,7 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
               max={40}
               step={1}
               value={form.minAlt}
-              onChange={(e) => update("minAlt", Number(e.target.value) as any)}
+              onChange={(e) => update("minAlt", Number(e.target.value))}
             />
             <div className="text-sm text-muted">Current: {form.minAlt}°</div>
           </div>
@@ -448,7 +514,7 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
               max={15}
               step={0.5}
               value={form.maxMag}
-              onChange={(e) => update("maxMag", Number(e.target.value) as any)}
+              onChange={(e) => update("maxMag", Number(e.target.value))}
             />
             <div className="text-sm text-muted">Current: {form.maxMag}</div>
           </div>

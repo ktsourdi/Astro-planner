@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
 
   for (const title of tryTitles) {
     try {
-      const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
+      const wikipediaUrl = process.env.NEXT_PUBLIC_WIKIPEDIA_API_URL || 'https://en.wikipedia.org/api/rest_v1';
+      const url = `${wikipediaUrl}/page/summary/${encodeURIComponent(title)}`;
       const r = await fetch(url, { next: { revalidate: 60 * 60 * 24 } });
       if (!r.ok) continue;
       const json: any = await r.json();

@@ -110,12 +110,21 @@ export default function TargetCard({ rec }: Props) {
             }}
             onError={(e) => {
               const img = e.target as HTMLImageElement;
-              // Try fallback once via our proxy; hide only if that also fails
+              // Use a placeholder image as fallback
+              const placeholderUrl = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200' viewBox='0 0 400 200'%3E%3Crect fill='%23334155' width='400' height='200'/%3E%3Ctext fill='%2394a3b8' font-family='system-ui' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3E${encodeURIComponent(rec.name)}%3C/text%3E%3C/svg%3E`;
+              
               if (!img.dataset.fallback) {
                 img.dataset.fallback = "1";
-                img.src = `/api/image?name=${encodeURIComponent(rec.name)}`;
+                // Try Wikipedia API first
+                if (!rec.image_url) {
+                  img.src = `/api/image?name=${encodeURIComponent(rec.name)}`;
+                } else {
+                  // If custom image failed, use placeholder
+                  img.src = placeholderUrl;
+                }
               } else {
-                img.style.display = 'none';
+                // Final fallback to placeholder
+                img.src = placeholderUrl;
               }
             }}
           />
