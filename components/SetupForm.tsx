@@ -470,6 +470,13 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
         >
           📋 Plan Selected Target
         </button>
+        <a
+          href="/map"
+          className="btn-secondary"
+          style={{ flex: "1 1 200px", textAlign: "center", textDecoration: "none" }}
+        >
+          🗺️ Open Dark-Sky Map
+        </a>
       </div>
     </form>
   );
