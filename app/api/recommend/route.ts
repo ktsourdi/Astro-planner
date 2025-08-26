@@ -16,6 +16,10 @@ const querySchema = z.object({
   targetId: z.string().optional(),
   minAlt: z.coerce.number().min(0).max(89).default(10).optional(),
   maxMag: z.coerce.number().min(-10).max(20).default(12).optional(),
+  // How many recommendations to return (after filtering and sorting)
+  limit: z.coerce.number().min(1).max(1000).default(200).optional(),
+  // How many OpenNGC rows to scan (performance lever)
+  openNgcMax: z.coerce.number().min(100).max(10000).default(3000).optional(),
 });
 
 type Target = {
@@ -136,7 +140,7 @@ function computeVisibilityWindow(t: Target, lat: number, lon: number, atIso?: st
   const raH = parseHmsToHours(t.ra_hms);
   const decD = parseDmsToDegrees(t.dec_dms);
 
-  const stepMinutes = 20; // sampling step
+  const stepMinutes = 10; // finer sampling for more accurate windows
   let maxAlt = -90;
   let maxAltTime: Date | null = null;
   let firstVisible: Date | null = null;
@@ -255,6 +259,7 @@ async function fetchOpenNgcTargets(maxItems = 3000, maxMag = 12): Promise<Target
 }
 
 export async function GET(req: NextRequest) {
+  const t0 = Date.now();
   const searchParams = req.nextUrl.searchParams;
   const rawParams = Object.fromEntries(searchParams.entries());
   const parsed = querySchema.safeParse(rawParams);
@@ -265,6 +270,7 @@ export async function GET(req: NextRequest) {
     );
   }
   const p = parsed.data;
+  const minAlt = (p.minAlt ?? 10) as number;
 
   const fovWidthDeg = degreesFromSensorAndFocal(p.sensorW, p.focalMm);
   const fovHeightDeg = degreesFromSensorAndFocal(p.sensorH, p.focalMm);
@@ -281,7 +287,7 @@ export async function GET(req: NextRequest) {
   const nightHours = nightStart && nightEnd && nightEnd > nightStart ? (nightEnd.getTime() - nightStart.getTime()) / 3600000 : null;
 
   // Merge local curated targets with a dynamic OpenNGC subset (cached by Vercel for a day)
-  const dynamicTargets: Target[] = await fetchOpenNgcTargets(undefined as any, (p as any).maxMag ?? 12).catch(() => []);
+  const dynamicTargets: Target[] = await fetchOpenNgcTargets((p as any).openNgcMax ?? 3000, (p as any).maxMag ?? 12).catch(() => []);
   // Merge with preference for curated local targets when IDs collide
   const normalizeKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
   const byKey = new Map<string, Target>();
@@ -308,7 +314,10 @@ export async function GET(req: NextRequest) {
       notes: p.mount === "guided" ? "Guided mount: longer subs OK" : p.mount === "tracker" ? "Tracker: moderate subs recommended" : "Fixed mount: keep subs short",
     };
 
-    const window = computeVisibilityWindow(t, p.lat, p.lon, p.date, p.minAlt);
+    // Early prune: if object cannot physically reach the required altitude at transit, skip expensive sampling
+    const decDQuick = parseDmsToDegrees(t.dec_dms);
+    const maxTransitAlt = 90 - Math.abs(p.lat - decDQuick);
+    const window = maxTransitAlt >= minAlt ? computeVisibilityWindow(t, p.lat, p.lon, p.date, minAlt) : null;
 
     // Visibility scoring prioritizes duration above minAlt and peak altitude
     let visibilityScore = 0;
@@ -342,19 +351,13 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  let recommended = items
+  const limit = Math.min(Math.max(Number((p as any).limit ?? 200), 1), 1000);
+  const recommended = items
     .filter((i) => i.window)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 20);
+    .slice(0, limit);
 
-  // Fallback: if nothing is visible by current thresholds, show best framing regardless of window
-  if (recommended.length === 0) {
-    recommended = items
-      .filter((i) => i.window)
-      .sort((a, b) => b.visibility_score - a.visibility_score)
-      .slice(0, 10);
-  }
-
+  const t1 = Date.now();
   const payload = {
     setup: {
       lat: p.lat,
@@ -368,18 +371,29 @@ export async function GET(req: NextRequest) {
       date: p.date ?? new Date().toISOString(),
       time_basis: "local_from_longitude",
       hemisphere: p.lat < 0 ? "southern" : "northern",
-      minAlt: p.minAlt,
+      minAlt,
     },
     debug: {
       night_start_utc: nightStart ? new Date(nightStart).toISOString() : null,
       night_end_utc: nightEnd ? new Date(nightEnd).toISOString() : null,
     },
     recommended_targets: recommended,
+    metrics: {
+      source_count: sourceTargets.length,
+      visible_count: recommended.length,
+      compute_ms: t1 - t0,
+    },
     filtered_out_examples: items
       .filter((i) => i.framing_score <= 0.15)
       .slice(0, 3),
   };
 
-  return NextResponse.json(payload, { status: 200 });
+  return NextResponse.json(payload, {
+    status: 200,
+    headers: {
+      // Cache on the edge for 5 minutes; safe because the response varies by the full query string
+      "Cache-Control": "s-maxage=300, stale-while-revalidate=60",
+    },
+  });
 }
 

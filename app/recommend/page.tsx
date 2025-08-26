@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import TargetCard from "@/components/TargetCard";
 import Link from "next/link";
 
@@ -29,6 +29,8 @@ export default function RecommendPage() {
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugTargetId, setDebugTargetId] = useState<string | null>(null);
   const [typeFilters, setTypeFilters] = useState<string[]>([]);
+  const [visibleCount, setVisibleCount] = useState<number>(24);
+  const pageSize = 24;
 
   useEffect(() => {
     async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit, retries = 2): Promise<Response> {
@@ -69,7 +71,7 @@ export default function RecommendPage() {
       return;
     }
     const qs = params.toString();
-    const url = `/api/recommend?${qs}`;
+    const url = `/api/recommend?${qs}${qs ? "&" : ""}limit=500`;
     console.debug("[recommend] fetching recommendations", { url });
     fetchWithRetry(url, { cache: "no-store" }, 2)
       .then((r) => r.json())
@@ -158,6 +160,12 @@ export default function RecommendPage() {
   }
 
   const filteredTargets = getFilteredTargets();
+  const displayedTargets = useMemo(() => filteredTargets.slice(0, visibleCount), [filteredTargets, visibleCount]);
+
+  // Reset pagination when filters/sort/data change
+  useEffect(() => {
+    setVisibleCount(pageSize);
+  }, [filter, sortBy, typeFilters, data]);
 
   function toRadians(deg: number) {
     return (deg * Math.PI) / 180;
@@ -434,10 +442,21 @@ export default function RecommendPage() {
 
             {/* Target Grid */}
             <div className="grid grid-auto-fill-280" style={{ gap: "var(--space-4)" }}>
-              {filteredTargets.map((t) => (
+              {displayedTargets.map((t) => (
                 <TargetCard key={t.id} rec={t as any} />
               ))}
             </div>
+            {displayedTargets.length < filteredTargets.length && (
+              <div style={{ display: "flex", justifyContent: "center", marginTop: "var(--space-6)" }}>
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((c) => Math.min(c + pageSize, filteredTargets.length))}
+                  className="btn-secondary"
+                >
+                  Load more ({filteredTargets.length - displayedTargets.length} more)
+                </button>
+              </div>
+            )}
           </>
         )}
       </main>
