@@ -20,6 +20,8 @@ export default function RecommendPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "high" | "medium">("all");
   const [sortBy, setSortBy] = useState<"score" | "framing" | "name">("score");
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugTargetId, setDebugTargetId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit, retries = 2): Promise<Response> {
@@ -142,6 +144,48 @@ export default function RecommendPage() {
 
   const filteredTargets = getFilteredTargets();
 
+  function toRadians(deg: number) {
+    return (deg * Math.PI) / 180;
+  }
+  function toDegrees(rad: number) {
+    return (rad * 180) / Math.PI;
+  }
+  function normalizeDegrees(deg: number) {
+    let x = deg % 360;
+    if (x < 0) x += 360;
+    return x;
+  }
+  function parseHmsToHours(hms: string) {
+    const [h, m, s] = hms.split(":").map(Number);
+    return (h || 0) + (m || 0) / 60 + (s || 0) / 3600;
+  }
+  function parseDmsToDegrees(dms: string) {
+    const sign = dms.trim().startsWith("-") ? -1 : 1;
+    const clean = dms.replace(/[+\-]/, "");
+    const [d, m, s] = clean.split(":").map(Number);
+    const deg = (Math.abs(d) || 0) + (m || 0) / 60 + (s || 0) / 3600;
+    return sign * deg;
+  }
+  function gmstDegrees(date: Date) {
+    const JD = date.getTime() / 86400000 + 2440587.5;
+    const D = JD - 2451545.0;
+    const T = D / 36525.0;
+    const GMST = 280.46061837 + 360.98564736629 * D + 0.000387933 * (T * T) - (T * T * T) / 38710000;
+    return normalizeDegrees(GMST);
+  }
+  function altitudeAt(date: Date, latDeg: number, lonDeg: number, raHours: number, decDeg: number) {
+    const gmst = gmstDegrees(date);
+    const lst = normalizeDegrees(gmst + lonDeg);
+    const raDeg = raHours * 15;
+    const hourAngle = normalizeDegrees(lst - raDeg);
+    const H = toRadians(hourAngle);
+    const phi = toRadians(latDeg);
+    const delta = toRadians(decDeg);
+    const sinAlt = Math.sin(phi) * Math.sin(delta) + Math.cos(phi) * Math.cos(delta) * Math.cos(H);
+    const alt = Math.asin(Math.max(-1, Math.min(1, sinAlt)));
+    return toDegrees(alt);
+  }
+
   return (
     <>
       {/* Header Section */}
@@ -180,6 +224,15 @@ export default function RecommendPage() {
                 ← Adjust Setup
               </button>
             </Link>
+            {data && (
+              <button
+                type="button"
+                onClick={() => setDebugOpen((v) => !v)}
+                className="btn-secondary"
+              >
+                {debugOpen ? "Hide Debug" : "Show Debug"}
+              </button>
+            )}
           </div>
 
           {/* Filters and Sort */}
@@ -242,6 +295,60 @@ export default function RecommendPage() {
         paddingTop: "var(--space-8)", 
         paddingBottom: "var(--space-8)" 
       }}>
+        {debugOpen && data && (
+          <div className="card" style={{ marginBottom: "var(--space-6)" }}>
+            <div style={{ display: "flex", gap: "var(--space-4)", alignItems: "center", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontWeight: 600 }}>Night interval</div>
+                <div style={{ color: "var(--color-text-secondary)" }}>
+                  {data.debug?.night_start_utc || "-"} → {data.debug?.night_end_utc || "-"}
+                </div>
+              </div>
+              <div>
+                <label style={{ marginRight: 8 }}>Debug target:</label>
+                <select value={debugTargetId || ""} onChange={(e) => setDebugTargetId(e.target.value || null)}>
+                  <option value="">— select —</option>
+                  {filteredTargets.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.id})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {!!debugTargetId && (() => {
+              const t = filteredTargets.find((x) => x.id === debugTargetId) as any;
+              if (!t) return null;
+              const lat = data.setup?.lat as number;
+              const lon = data.setup?.lon as number;
+              const startIso = data.debug?.night_start_utc as string | null;
+              const endIso = data.debug?.night_end_utc as string | null;
+              if (!startIso || !endIso) return <div style={{ marginTop: 8 }}>No night interval available.</div>;
+              const raH = parseHmsToHours(t.ra_hms);
+              const decD = parseDmsToDegrees(t.dec_dms);
+              const start = new Date(startIso).getTime();
+              const end = new Date(endIso).getTime();
+              const rows: { time: string; alt: number }[] = [];
+              for (let ms = start; ms <= end; ms += 60 * 60 * 1000) {
+                const d = new Date(ms);
+                const alt = altitudeAt(d, lat, lon, raH, decD);
+                rows.push({ time: d.toISOString(), alt: Math.round(alt * 10) / 10 });
+              }
+              return (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 6 }}>Hourly altitude (°)</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                    {rows.map((r, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ color: "var(--color-text-secondary)" }}>{new Date(r.time).toLocaleTimeString()}</span>
+                        <span>{r.alt}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
         {filteredTargets.length === 0 ? (
           <div className="card" style={{ 
             textAlign: "center",

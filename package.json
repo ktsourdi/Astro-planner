@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "seasonal:check": "node scripts/seasonal-check.mjs"
   },
   "dependencies": {
     "astronomia": "4.1.1",

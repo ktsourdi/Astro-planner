@@ -97,12 +97,11 @@ function normalizeDegrees(deg: number): number {
 }
 
 function gmstDegrees(date: Date): number {
-  // Meeus approximation
-  const JD = date.getTime() / 86400000 + 2440587.5;
-  const D = JD - 2451545.0;
-  const D0 = Math.floor(D);
-  const T = (D0 - 0) / 36525.0;
-  const GMST = 280.46061837 + 360.98564736629 * D + 0.000387933 * T * T - (T * T * T) / 38710000;
+  // Meeus approximation (accurate GMST with centuries since J2000)
+  const JD = date.getTime() / 86400000 + 2440587.5; // Julian Day
+  const D = JD - 2451545.0; // Days since J2000.0
+  const T = D / 36525.0; // Julian centuries since J2000.0
+  const GMST = 280.46061837 + 360.98564736629 * D + 0.000387933 * (T * T) - (T * T * T) / 38710000;
   return normalizeDegrees(GMST);
 }
 
@@ -120,11 +119,16 @@ function altitudeDegreesAt(date: Date, latDeg: number, lonDeg: number, raHours: 
 }
 
 function computeVisibilityWindow(t: Target, lat: number, lon: number, atIso?: string, minAlt = 10) {
-  const date = atIso ? new Date(atIso) : new Date();
-  let times = SunCalc.getTimes(date, lat, lon) as any;
-  // Prefer astronomical night, fall back to sunset/sunrise if needed
-  const start = (times.night as Date) || (times.dusk as Date) || (times.sunset as Date);
-  const end = (times.nightEnd as Date) || (times.dawn as Date) || (times.sunrise as Date);
+  const base = atIso ? new Date(atIso) : new Date();
+  // Anchor SunCalc to approximate local civil date based on longitude (4 min/deg)
+  const offsetMinutes = lon * 4;
+  const localMs = base.getTime() + offsetMinutes * 60 * 1000;
+  const localDate = new Date(localMs);
+  const times0 = SunCalc.getTimes(localDate, lat, lon) as any;
+  const times1 = SunCalc.getTimes(new Date(localDate.getTime() + 24 * 3600000), lat, lon) as any;
+  // Use evening twilight start from the given local date, and morning twilight end from the next local date
+  const start = (times0.night as Date) || (times0.dusk as Date) || (times0.sunset as Date);
+  const end = (times1.nightEnd as Date) || (times1.dawn as Date) || (times1.sunrise as Date);
   if (!start || !end || !(start instanceof Date) || !(end instanceof Date) || start >= end) {
     return null;
   }
@@ -258,6 +262,13 @@ export async function GET(req: NextRequest) {
   // Use month based on local time at observer longitude (approximation)
   const currentMonth = localMonthAtLongitude(p.date, p.lon);
 
+  // Compute night duration once per request for visibility scoring
+  const baseDateIso = p.date ?? new Date().toISOString();
+  const sunTimes = SunCalc.getTimes(new Date(baseDateIso), p.lat, p.lon) as any;
+  const nightStart = (sunTimes.night as Date) || (sunTimes.dusk as Date) || (sunTimes.sunset as Date);
+  const nightEnd = (sunTimes.nightEnd as Date) || (sunTimes.dawn as Date) || (sunTimes.sunrise as Date);
+  const nightHours = nightStart && nightEnd && nightEnd > nightStart ? (nightEnd.getTime() - nightStart.getTime()) / 3600000 : null;
+
   // Merge local curated targets with a dynamic OpenNGC subset (cached by Vercel for a day)
   const dynamicTargets: Target[] = await fetchOpenNgcTargets(undefined as any, (p as any).maxMag ?? 12).catch(() => []);
   // Merge with preference for curated local targets when IDs collide
@@ -275,8 +286,7 @@ export async function GET(req: NextRequest) {
     const fillRatio = t.size_deg / fovShortDeg;
     const framingScore = computeFramingScore(fillRatio);
     const effectiveBestMonths = rotateMonthsForSouthernHemisphere(t.best_months, p.lat);
-    const monthBoost = effectiveBestMonths?.includes(currentMonth) ? 0.15 : 0;
-    const baseScore = framingScore + monthBoost;
+    const monthFactor = effectiveBestMonths?.includes(currentMonth) ? 1 : 0;
 
     // very rough exposure heuristics by mount
     const mountSubExposure = p.mount === "guided" ? 180 : p.mount === "tracker" ? 60 : 10;
@@ -289,13 +299,31 @@ export async function GET(req: NextRequest) {
 
     const window = computeVisibilityWindow(t, p.lat, p.lon, p.date, p.minAlt);
 
+    // Visibility scoring prioritizes duration above minAlt and peak altitude
+    let visibilityScore = 0;
+    let visibleHours = 0;
+    if (window) {
+      const startMs = new Date(window.start_utc).getTime();
+      const endMs = new Date(window.end_utc).getTime();
+      visibleHours = Math.max(0, (endMs - startMs) / 3600000);
+      const durationFactor = nightHours ? Math.min(1, Math.max(0, visibleHours / nightHours)) : Math.min(1, visibleHours / 8);
+      const altitudeFactor = Math.min(1, Math.max(0, window.alt_max_deg / 80));
+      visibilityScore = Number((0.6 * durationFactor + 0.4 * altitudeFactor).toFixed(3));
+    }
+
+    const finalScore = Number((0.7 * visibilityScore + 0.2 * framingScore + 0.1 * monthFactor).toFixed(3));
+
     return {
       id: t.id,
       name: t.name,
       type: t.type,
+      ra_hms: t.ra_hms,
+      dec_dms: t.dec_dms,
       fill_ratio: Number(fillRatio.toFixed(3)),
       framing_score: Number(framingScore.toFixed(3)),
-      score: Number((baseScore + (window ? 0.1 : 0)).toFixed(3)),
+      visibility_score: visibilityScore,
+      visible_hours: Number(visibleHours.toFixed(2)),
+      score: finalScore,
       suggested_capture: suggested,
       image_url: t.image_url,
       description: t.description,
@@ -304,7 +332,6 @@ export async function GET(req: NextRequest) {
   });
 
   let recommended = items
-    .filter((i) => i.framing_score > 0.15)
     .filter((i) => i.window)
     .sort((a, b) => b.score - a.score)
     .slice(0, 20);
@@ -312,8 +339,8 @@ export async function GET(req: NextRequest) {
   // Fallback: if nothing is visible by current thresholds, show best framing regardless of window
   if (recommended.length === 0) {
     recommended = items
-      .filter((i) => i.framing_score > 0.15)
-      .sort((a, b) => b.framing_score - a.framing_score)
+      .filter((i) => i.window)
+      .sort((a, b) => b.visibility_score - a.visibility_score)
       .slice(0, 10);
   }
 
@@ -331,6 +358,10 @@ export async function GET(req: NextRequest) {
       time_basis: "local_from_longitude",
       hemisphere: p.lat < 0 ? "southern" : "northern",
       minAlt: p.minAlt,
+    },
+    debug: {
+      night_start_utc: nightStart ? new Date(nightStart).toISOString() : null,
+      night_end_utc: nightEnd ? new Date(nightEnd).toISOString() : null,
     },
     recommended_targets: recommended,
     filtered_out_examples: items

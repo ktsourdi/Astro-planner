@@ -54,4 +54,170 @@
     "image_url": "https://apod.nasa.gov/apod/image/2308/M8-Lagoon-Nebula-1024.jpg",
     "description": "A giant interstellar cloud with embedded open cluster NGC 6530"
   }
+  ,
+  {
+    "id": "NGC2237",
+    "name": "Rosette Nebula",
+    "type": "nebula",
+    "ra_hms": "06:31:55",
+    "dec_dms": "+04:56:34",
+    "size_deg": 1.3,
+    "best_months": [12, 1, 2, 3],
+    "image_url": "https://upload.wikimedia.org/wikipedia/commons/1/1c/Rosette_Nebula.jpg",
+    "description": "Large emission nebula in Monoceros"
+  },
+  {
+    "id": "M1",
+    "name": "Crab Nebula",
+    "type": "nebula",
+    "ra_hms": "05:34:32",
+    "dec_dms": "+22:00:52",
+    "size_deg": 0.08,
+    "best_months": [11, 12, 1, 2],
+    "image_url": "https://upload.wikimedia.org/wikipedia/commons/0/00/Crab_Nebula.jpg",
+    "description": "Supernova remnant in Taurus"
+  },
+  {
+    "id": "M36",
+    "name": "M36",
+    "type": "cluster",
+    "ra_hms": "05:36:12",
+    "dec_dms": "+34:08:24",
+    "size_deg": 0.12,
+    "best_months": [12, 1, 2],
+    "image_url": "",
+    "description": "Open cluster in Auriga"
+  },
+  {
+    "id": "M37",
+    "name": "M37",
+    "type": "cluster",
+    "ra_hms": "05:52:18",
+    "dec_dms": "+32:33:12",
+    "size_deg": 0.20,
+    "best_months": [12, 1, 2],
+    "image_url": "",
+    "description": "Open cluster in Auriga"
+  },
+  {
+    "id": "M38",
+    "name": "M38",
+    "type": "cluster",
+    "ra_hms": "05:28:42",
+    "dec_dms": "+35:50:36",
+    "size_deg": 0.21,
+    "best_months": [12, 1, 2],
+    "image_url": "",
+    "description": "Open cluster in Auriga"
+  },
+  {
+    "id": "M51",
+    "name": "Whirlpool Galaxy",
+    "type": "galaxy",
+    "ra_hms": "13:29:52",
+    "dec_dms": "+47:11:43",
+    "size_deg": 0.17,
+    "best_months": [3, 4, 5, 6],
+    "image_url": "https://upload.wikimedia.org/wikipedia/commons/7/73/Messier51_sRGB.jpg",
+    "description": "Interacting grand-design spiral galaxy"
+  },
+  {
+    "id": "M104",
+    "name": "Sombrero Galaxy",
+    "type": "galaxy",
+    "ra_hms": "12:39:59",
+    "dec_dms": "-11:37:23",
+    "size_deg": 0.09,
+    "best_months": [3, 4, 5],
+    "image_url": "https://upload.wikimedia.org/wikipedia/commons/3/3f/M104_ngc4594_sombrero_galaxy_hi-res.jpg",
+    "description": "Bright galaxy with prominent dust lane"
+  },
+  {
+    "id": "M13",
+    "name": "Hercules Globular Cluster",
+    "type": "cluster",
+    "ra_hms": "16:41:41",
+    "dec_dms": "+36:27:36",
+    "size_deg": 0.16,
+    "best_months": [5, 6, 7, 8],
+    "image_url": "https://upload.wikimedia.org/wikipedia/commons/d/d8/M13_-_Hercules_Global_Cluster.jpg",
+    "description": "Bright globular cluster in Hercules"
+  },
+  {
+    "id": "M20",
+    "name": "Trifid Nebula",
+    "type": "nebula",
+    "ra_hms": "18:02:42",
+    "dec_dms": "-22:58:00",
+    "size_deg": 1.0,
+    "best_months": [6, 7, 8],
+    "image_url": "https://upload.wikimedia.org/wikipedia/commons/0/05/Trifid_Nebula_by_ESO.jpg",
+    "description": "Emission and reflection nebula in Sagittarius"
+  },
+  {
+    "id": "M16",
+    "name": "Eagle Nebula",
+    "type": "nebula",
+    "ra_hms": "18:18:48",
+    "dec_dms": "-13:49:00",
+    "size_deg": 1.3,
+    "best_months": [6, 7, 8],
+    "image_url": "https://upload.wikimedia.org/wikipedia/commons/1/10/M16_-_Eagle_Nebula.jpg",
+    "description": "Home of the Pillars of Creation"
+  },
+  {
+    "id": "M17",
+    "name": "Omega Nebula",
+    "type": "nebula",
+    "ra_hms": "18:20:26",
+    "dec_dms": "-16:10:36",
+    "size_deg": 1.0,
+    "best_months": [6, 7, 8],
+    "image_url": "https://upload.wikimedia.org/wikipedia/commons/e/ed/Omega_Nebula.jpg",
+    "description": "Bright H II region in Sagittarius"
+  },
+  {
+    "id": "M33",
+    "name": "Triangulum Galaxy",
+    "type": "galaxy",
+    "ra_hms": "01:33:50",
+    "dec_dms": "+30:39:36",
+    "size_deg": 1.1,
+    "best_months": [9, 10, 11, 12],
+    "image_url": "https://upload.wikimedia.org/wikipedia/commons/8/88/Triangulum_Galaxy.jpg",
+    "description": "Face-on spiral galaxy near Andromeda"
+  },
+  {
+    "id": "NGC869",
+    "name": "Double Cluster (NGC 869)",
+    "type": "cluster",
+    "ra_hms": "02:19:00",
+    "dec_dms": "+57:08:00",
+    "size_deg": 0.60,
+    "best_months": [9, 10, 11, 12],
+    "image_url": "",
+    "description": "One of the Double Cluster pair in Perseus"
+  },
+  {
+    "id": "NGC884",
+    "name": "Double Cluster (NGC 884)",
+    "type": "cluster",
+    "ra_hms": "02:22:00",
+    "dec_dms": "+57:07:00",
+    "size_deg": 0.60,
+    "best_months": [9, 10, 11, 12],
+    "image_url": "",
+    "description": "One of the Double Cluster pair in Perseus"
+  },
+  {
+    "id": "NGC281",
+    "name": "Pacman Nebula",
+    "type": "nebula",
+    "ra_hms": "00:52:59",
+    "dec_dms": "+56:37:18",
+    "size_deg": 0.35,
+    "best_months": [9, 10, 11],
+    "image_url": "https://upload.wikimedia.org/wikipedia/commons/2/27/NGC_281_Pacman_Nebula.jpg",
+    "description": "Emission nebula in Cassiopeia"
+  }
 ]
