@@ -164,7 +164,7 @@ function computeVisibilityWindow(t: Target, lat: number, lon: number, atIso?: st
   } as { start_utc: string; end_utc: string; alt_max_deg: number };
 }
 
-async function fetchOpenNgcTargets(maxItems = 800, maxMag = 12): Promise<Target[]> {
+async function fetchOpenNgcTargets(maxItems = 3000, maxMag = 12): Promise<Target[]> {
   const url = "https://raw.githubusercontent.com/mattiaverga/OpenNGC/master/NGC.csv";
   try {
     const resp = await fetch(url, { next: { revalidate: 60 * 60 * 24 } });
@@ -210,10 +210,21 @@ async function fetchOpenNgcTargets(maxItems = 800, maxMag = 12): Promise<Target[
     };
     const mapType = (t: string): string => {
       const s = (t || "").toLowerCase();
-      if (/(gal|gx)/.test(s)) return "galaxy";
-      if (/(neb|pn|sfr|emission|dark)/.test(s)) return "nebula";
-      if (/(oc|gc|cluster)/.test(s)) return "cluster";
-      return t || "object";
+      if (/(pn|planetary)/.test(s)) return "Planetary Nebula";
+      if (/(reflection|rneb|ref)/.test(s)) return "Reflection Nebula";
+      if (/(dark neb|\bdn\b|barnard)/.test(s)) return "Dark Nebula";
+      if (/(snr|supernova remnant)/.test(s)) return "Supernova Remnant";
+      if (/(\boc\b|open cluster)/.test(s)) return "Open Cluster";
+      if (/(\bgc\b|globular)/.test(s)) return "Globular Cluster";
+      if (/(group of galaxies|galaxy group|grg)/.test(s)) return "Group of Galaxies";
+      if (/(galaxy cluster|cluster of galaxies|\bcl\b)/.test(s)) return "Galaxy Cluster";
+      if (/(emission|hii|sfr)/.test(s)) return "Emission Nebula";
+      if (/\bneb\b/.test(s)) return "Emission Nebula";
+      if (/(gal|gx|\bg\b)/.test(s)) return "Galaxy";
+      if (/supernova/.test(s)) return "Supernova";
+      if (/cluster/.test(s)) return "Open Cluster";
+      if (/nebula/.test(s)) return "Emission Nebula";
+      return t || "Object";
     };
 
     const result: Target[] = [];

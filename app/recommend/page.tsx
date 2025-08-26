@@ -28,6 +28,7 @@ export default function RecommendPage() {
   const [sortBy, setSortBy] = useState<"score" | "framing" | "name">("score");
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugTargetId, setDebugTargetId] = useState<string | null>(null);
+  const [typeFilters, setTypeFilters] = useState<string[]>([]);
 
   useEffect(() => {
     async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit, retries = 2): Promise<Response> {
@@ -87,6 +88,10 @@ export default function RecommendPage() {
     if (!data) return [];
     let targets = [...data.recommended_targets];
     
+    if (typeFilters.length > 0) {
+      targets = targets.filter(t => typeFilters.includes(t.type));
+    }
+
     // Apply filter
     if (filter === "high") {
       targets = targets.filter(t => t.score >= 0.7);
@@ -295,6 +300,26 @@ export default function RecommendPage() {
                 <option value="framing">By Framing</option>
                 <option value="name">By Name</option>
               </select>
+            </div>
+
+            {/* Category filter */}
+            <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" }}>Categories:</span>
+              {Array.from(new Set((data?.recommended_targets || []).map(t => t.type))).sort().map(cat => (
+                <label key={cat} style={{ display: "inline-flex", gap: 6, alignItems: "center", border: "1px solid var(--color-border)", borderRadius: 6, padding: "2px 6px" }}>
+                  <input
+                    type="checkbox"
+                    checked={typeFilters.includes(cat)}
+                    onChange={(e) => {
+                      setTypeFilters((prev) => e.target.checked ? [...prev, cat] : prev.filter(c => c !== cat));
+                    }}
+                  />
+                  <span style={{ fontSize: "var(--font-size-xs)" }}>{cat}</span>
+                </label>
+              ))}
+              {typeFilters.length > 0 && (
+                <button type="button" className="btn-ghost" onClick={() => setTypeFilters([])} style={{ fontSize: "var(--font-size-sm)" }}>Clear</button>
+              )}
             </div>
           </div>
         </div>

@@ -24,8 +24,16 @@ export default function TargetCard({ rec }: Props) {
 
   const getTypeIcon = () => {
     const type = rec.type.toLowerCase();
+    if (type.includes("planetary nebula")) return "🟢";
+    if (type.includes("reflection nebula")) return "🔷";
+    if (type.includes("dark nebula")) return "🌑";
+    if (type.includes("supernova remnant")) return "💥";
+    if (type.includes("emission nebula")) return "☁️";
+    if (type.includes("open cluster")) return "✨";
+    if (type.includes("globular cluster")) return "🔆";
+    if (type.includes("group of galaxies")) return "🧩";
+    if (type.includes("galaxy cluster")) return "🧊";
     if (type.includes("galaxy")) return "🌌";
-    if (type.includes("nebula")) return "☁️";
     if (type.includes("cluster")) return "✨";
     if (type.includes("planet")) return "🪐";
     return "⭐";
