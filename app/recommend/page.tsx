@@ -4,19 +4,25 @@ import { useEffect, useState } from "react";
 import TargetCard from "@/components/TargetCard";
 import Link from "next/link";
 
+type ApiDebug = { night_start_utc: string | null; night_end_utc: string | null };
+
 type Recommendation = {
   id: string;
   name: string;
   type: string;
+  ra_hms: string;
+  dec_dms: string;
   fill_ratio: number;
   framing_score: number;
   window?: { start_utc: string; end_utc: string; alt_max_deg: number };
+  visibility_score?: number;
+  visible_hours?: number;
   score: number;
   suggested_capture: { sub_exposure_s: number; gain: number; subs: number; notes: string };
 };
 
 export default function RecommendPage() {
-  const [data, setData] = useState<{ setup?: any; recommended_targets: Recommendation[]; filtered_out_examples?: any[] } | null>(null);
+  const [data, setData] = useState<{ setup?: any; debug?: ApiDebug; recommended_targets: Recommendation[]; filtered_out_examples?: any[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "high" | "medium">("all");
   const [sortBy, setSortBy] = useState<"score" | "framing" | "name">("score");
