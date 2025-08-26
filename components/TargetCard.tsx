@@ -13,7 +13,9 @@ type Props = {
   };
 };
 
-export default function TargetCard({ rec }: Props) {
+import { memo } from "react";
+
+function TargetCardImpl({ rec }: Props) {
   const getFramingBadge = () => {
     if (rec.framing_score >= 0.8) return { text: "Perfect Framing", class: "badge-success" };
     if (rec.framing_score >= 0.7) return { text: "Great Framing", class: "badge-success" };
@@ -469,3 +471,6 @@ export default function TargetCard({ rec }: Props) {
     </div>
   );
 }
+
+const TargetCard = memo(TargetCardImpl);
+export default TargetCard;
