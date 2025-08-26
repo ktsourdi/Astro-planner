@@ -52,7 +52,11 @@ export default function RecommendPage() {
 
     let params: URLSearchParams | null = null;
     try {
-      const raw = window.sessionStorage.getItem("astro-params") || "";
+      let raw = window.sessionStorage.getItem("astro-params") || "";
+      if (!raw) {
+        // Fallback to last saved params in localStorage
+        raw = window.localStorage.getItem("astro-params-last") || "";
+      }
       console.debug("[recommend] loaded session params raw", { raw });
       params = new URLSearchParams(raw);
     } catch {

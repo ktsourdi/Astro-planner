@@ -30,6 +30,38 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     maxMag: 12,
   });
 
+  // Persist to localStorage with TTL and load on mount
+  const STORAGE_KEY = "astro-setup-v1";
+  const TTL_DAYS = 30;
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      const savedAt = parsed?.savedAt ? new Date(parsed.savedAt).getTime() : 0;
+      const ageDays = (Date.now() - savedAt) / (1000 * 60 * 60 * 24);
+      if (!parsed?.data || (Number.isFinite(ageDays) && ageDays > TTL_DAYS)) {
+        return;
+      }
+      const data = parsed.data as typeof form;
+      // Only hydrate if user hasn't prefilled anything (keep initialLat/Lon if passed)
+      setForm((f) => ({
+        ...f,
+        ...data,
+        lat: f.lat !== "" ? f.lat : (data.lat as any),
+        lon: f.lon !== "" ? f.lon : (data.lon as any),
+      }));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      const payload = { data: form, savedAt: new Date().toISOString(), ttlDays: TTL_DAYS };
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch {}
+  }, [form]);
+
   const targetOptions = useMemo(() => targets.map((t) => ({ id: t.id, name: t.name })), []);
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -52,6 +84,10 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     const raw = params.toString();
     console.debug("[setup] saving session params", { raw });
     sessionStorage.setItem("astro-params", raw);
+    try {
+      // also persist latest params for quick resume
+      window.localStorage.setItem("astro-params-last", raw);
+    } catch {}
     if (target === "plan") {
       const qs = params.toString();
       const url = `/api/plan?${qs}`;
