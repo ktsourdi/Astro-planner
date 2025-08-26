@@ -16,6 +16,8 @@ const querySchema = z.object({
   targetId: z.string().optional(),
   minAlt: z.coerce.number().min(0).max(89).default(10).optional(),
   maxMag: z.coerce.number().min(-10).max(20).default(12).optional(),
+  // How many recommendations to return (after filtering and sorting)
+  limit: z.coerce.number().min(1).max(1000).default(200).optional(),
 });
 
 type Target = {
@@ -342,18 +344,11 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  let recommended = items
+  const limit = Math.min(Math.max(Number((p as any).limit ?? 200), 1), 1000);
+  const recommended = items
     .filter((i) => i.window)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 20);
-
-  // Fallback: if nothing is visible by current thresholds, show best framing regardless of window
-  if (recommended.length === 0) {
-    recommended = items
-      .filter((i) => i.window)
-      .sort((a, b) => b.visibility_score - a.visibility_score)
-      .slice(0, 10);
-  }
+    .slice(0, limit);
 
   const payload = {
     setup: {
