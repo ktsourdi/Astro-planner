@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Analytics } from "@vercel/analytics/react";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   const [navOpen, setNavOpen] = useState(false);
@@ -121,6 +122,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             }
           }
         `}</style>
+        <Analytics />
       </body>
     </html>
   );

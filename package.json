@@ -10,6 +10,7 @@
     "seasonal:check": "node scripts/seasonal-check.mjs"
   },
   "dependencies": {
+    "@vercel/analytics": "^1.6.1",
     "astronomia": "4.1.1",
     "dayjs": "1.11.11",
     "geodesy": "2.4.0",
