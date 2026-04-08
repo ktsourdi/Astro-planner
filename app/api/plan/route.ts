@@ -160,8 +160,9 @@ function rotateMonthsForSouthernHemisphere(months: number[] | undefined, latDeg:
 
 function buildPlanCsv(payload: any): string {
   const csvSafe = (value: unknown) => {
-    const raw = String(value ?? "");
+    const raw = String(value ?? "").replace(/\t/g, " ");
     const escaped = raw.replace(/"/g, '""');
+    // Prefix potential spreadsheet formulas to reduce CSV formula injection risk.
     const formulaSafe = /^[=\-+@]/.test(escaped) ? `'${escaped}` : escaped;
     return `"${formulaSafe}"`;
   };

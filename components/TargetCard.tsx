@@ -101,9 +101,9 @@ function TargetCardImpl({ rec, setup }: Props) {
     const stopMs = new Date(rec.window.end_utc).getTime();
     const notifyStartMs = startMs - leadMinutes * 60000;
     const now = Date.now();
+    const targetLabel = safeNotificationLabel(rec.name);
 
     const schedule = () => {
-      const targetLabel = safeNotificationLabel(rec.name);
       const startDelay = notifyStartMs - now;
       const stopDelay = stopMs - now;
       if (startDelay > 0) {

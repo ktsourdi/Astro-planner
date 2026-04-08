@@ -1,7 +1,7 @@
 "use client";
 
 import targets from "@/data/targets.json";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Props = {
@@ -15,6 +15,7 @@ type SavedProfile = { id: string; name: string; data: any; savedAt: string };
 
 export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
   const router = useRouter();
+  const profileFallbackCounterRef = useRef(0);
   const [activeSection, setActiveSection] = useState<"location" | "equipment" | "settings">("location");
   const [form, setForm] = useState({
     lat: initialLat,
@@ -103,7 +104,8 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
           .map((b) => b.toString(16).padStart(2, "0"))
           .join("");
       }
-      return `${Date.now()}-${Math.floor(performance.now() * 1000)}`;
+      profileFallbackCounterRef.current += 1;
+      return `${Date.now()}-${profileFallbackCounterRef.current}-${Math.random().toString(36).slice(2, 8)}`;
     };
     const entropy =
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
