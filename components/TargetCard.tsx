@@ -36,6 +36,8 @@ type Props = {
     date?: string;
     mount?: "fixed" | "tracker" | "guided";
     minAlt?: number;
+    sensorW?: number;
+    sensorH?: number;
     subExposureS?: number;
     gain?: number;
     subs?: number;
