@@ -528,7 +528,7 @@ class _SetupPageState extends State<SetupPage> {
   Widget _numField(String label, TextEditingController controller) {
     return TextFormField(
       controller: controller,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+      keyboardType: TextInputType.numberWithOptions(decimal: true, signed: true),
       decoration: InputDecoration(labelText: label),
       validator: _requiredNum,
     );
