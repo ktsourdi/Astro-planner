@@ -59,6 +59,7 @@ export default function RecommendPage() {
   const [debugTargetId, setDebugTargetId] = useState<string | null>(null);
   const [typeFilters, setTypeFilters] = useState<string[]>([]);
   const [visibleCount, setVisibleCount] = useState<number>(24);
+  const [minScoreFromSetup, setMinScoreFromSetup] = useState<number>(0);
   const pageSize = 24;
 
   useEffect(() => {
@@ -101,8 +102,10 @@ export default function RecommendPage() {
     }
     const qs = params.toString();
     const url = `/api/recommend?${qs}${qs ? "&" : ""}limit=500`;
-    console.debug("[recommend] fetching recommendations", { url });
-    fetchWithRetry(url, { cache: "no-store" }, 2)
+      console.debug("[recommend] fetching recommendations", { url });
+      const parsedMinScore = Number(params.get("minScore") || "0");
+      if (Number.isFinite(parsedMinScore)) setMinScoreFromSetup(Math.max(0, Math.min(1, parsedMinScore)));
+      fetchWithRetry(url, { cache: "no-store" }, 2)
       .then((r) => r.json())
       .then((json) => {
         console.debug("[recommend] received recommendations", { count: Array.isArray(json?.recommended_targets) ? json.recommended_targets.length : undefined });
@@ -118,6 +121,10 @@ export default function RecommendPage() {
   const getFilteredTargets = () => {
     if (!data) return [];
     let targets = [...data.recommended_targets];
+
+    if (minScoreFromSetup > 0) {
+      targets = targets.filter((t) => t.score >= minScoreFromSetup);
+    }
     
     if (typeFilters.length > 0) {
       targets = targets.filter(t => typeFilters.includes(t.type));
@@ -194,7 +201,7 @@ export default function RecommendPage() {
   // Reset pagination when filters/sort/data change
   useEffect(() => {
     setVisibleCount(pageSize);
-  }, [filter, sortBy, typeFilters, data]);
+  }, [filter, sortBy, typeFilters, data, minScoreFromSetup]);
 
   function toRadians(deg: number) {
     return (deg * Math.PI) / 180;
@@ -270,6 +277,11 @@ export default function RecommendPage() {
               }}>
                 {data.recommended_targets.length} targets found for your setup
               </p>
+              {minScoreFromSetup > 0 && (
+                <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-1)", marginBottom: 0, fontSize: "var(--font-size-sm)" }}>
+                  Difficulty filter: showing targets above {(minScoreFromSetup * 100).toFixed(0)}%
+                </p>
+              )}
             </div>
             <Link href="/">
               <button className="btn-secondary">
@@ -480,7 +492,7 @@ export default function RecommendPage() {
             {/* Target Grid */}
             <div className="grid grid-auto-fill-280" style={{ gap: "var(--space-4)" }}>
               {displayedTargets.map((t) => (
-                <TargetCard key={t.id} rec={t as any} />
+                <TargetCard key={t.id} rec={t as any} setup={data.setup as any} />
               ))}
             </div>
             {displayedTargets.length < filteredTargets.length && (

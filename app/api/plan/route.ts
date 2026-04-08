@@ -10,6 +10,10 @@ const querySchema = z.object({
   date: z.string().datetime().optional(),
   mount: z.enum(["fixed", "tracker", "guided"]).default("tracker").optional(),
   minAlt: z.coerce.number().min(0).max(89).default(10).optional(),
+  export: z.enum(["json", "csv"]).default("json").optional(),
+  subExposureS: z.coerce.number().positive().optional(),
+  gain: z.coerce.number().nonnegative().optional(),
+  subs: z.coerce.number().positive().optional(),
 });
 
 type Target = {
@@ -19,6 +23,7 @@ type Target = {
   ra_hms: string;
   dec_dms: string;
   size_deg: number;
+  best_months?: number[];
 };
 
 function normalize(str: string): string {
@@ -130,6 +135,54 @@ function computeSubExposureSeconds(mount: "fixed" | "tracker" | "guided"): numbe
   return 10;
 }
 
+function localMonthAtLongitude(dateIso: string | undefined, lonDeg: number): number {
+  const base = dateIso ? new Date(dateIso) : new Date();
+  const offsetMinutes = lonDeg * 4;
+  const localMs = base.getTime() + offsetMinutes * 60 * 1000;
+  return new Date(localMs).getUTCMonth() + 1;
+}
+
+function rotateMonthsForSouthernHemisphere(months: number[] | undefined, latDeg: number): number[] | undefined {
+  if (!months || months.length === 0) return months;
+  if (latDeg >= 0) return months;
+  return months.map((m) => ((m + 5) % 12) + 1);
+}
+
+function buildPlanCsv(payload: any): string {
+  const lines: string[] = [];
+  lines.push("section,key,value");
+  lines.push(`meta,target_id,${payload.target.id}`);
+  lines.push(`meta,target_name,"${payload.target.name.replace(/"/g, '""')}"`);
+  lines.push(`meta,at_utc,${payload.atUtc}`);
+  lines.push(`meta,lat,${payload.location.lat}`);
+  lines.push(`meta,lon,${payload.location.lon}`);
+  lines.push(`setup,mount,${payload.setup.mount}`);
+  lines.push(`setup,min_alt_deg,${payload.setup.min_alt_deg}`);
+  lines.push(`setup,sub_exposure_s,${payload.setup.exposure.sub_exposure_s}`);
+  lines.push(`setup,gain,${payload.setup.exposure.gain}`);
+  lines.push(`setup,subs,${payload.setup.exposure.subs}`);
+  lines.push(`score,visibility,${payload.score_context.visibility}`);
+  lines.push(`score,season,${payload.score_context.season}`);
+  lines.push(`score,combined,${payload.score_context.combined}`);
+  lines.push(`window,start_utc,${payload.visibility_window.start_utc}`);
+  lines.push(`window,end_utc,${payload.visibility_window.end_utc}`);
+  lines.push(`window,alt_max_deg,${payload.visibility_window.alt_max_deg}`);
+  lines.push(`window,transit_utc,${payload.visibility_window.transit_utc}`);
+  lines.push("");
+  lines.push("capture_blocks,target_id,target_name,start_utc,end_utc,sub_exposure_s,estimated_subs,requires_meridian_flip");
+  for (const b of payload.capture_blocks) {
+    lines.push(
+      `${b.target_id},"${String(b.target_name).replace(/"/g, '""')}",${b.start_utc},${b.end_utc},${b.sub_exposure_s},${b.estimated_subs},${b.requires_meridian_flip}`
+    );
+  }
+  lines.push("");
+  lines.push("timeline,type,time_utc,note");
+  for (const t of payload.timeline) {
+    lines.push(`${t.type},${t.time_utc},"${String(t.note).replace(/"/g, '""')}"`);
+  }
+  return `${lines.join("\n")}\n`;
+}
+
 export async function GET(req: NextRequest) {
   const params = Object.fromEntries(req.nextUrl.searchParams.entries());
   const parsed = querySchema.safeParse(params);
@@ -140,6 +193,7 @@ export async function GET(req: NextRequest) {
   const p = parsed.data;
   const mount = p.mount ?? "tracker";
   const minAlt = p.minAlt ?? 10;
+  const exportMode = p.export ?? "json";
   const allTargets = targets as Target[];
   const key = normalize(p.targetId);
   const target =
@@ -174,11 +228,12 @@ export async function GET(req: NextRequest) {
   const subExposureS = computeSubExposureSeconds(mount);
   const efficiency = mount === "guided" ? 0.9 : mount === "tracker" ? 0.85 : 0.8;
   const visibleSeconds = Math.max(0, (visibleEnd.getTime() - visibleStart.getTime()) / 1000);
-  const estimatedSubsTotal = Math.max(1, Math.floor((visibleSeconds * efficiency) / subExposureS));
+  const computedSubExposureS = p.subExposureS ?? subExposureS;
+  const estimatedSubsTotal = Math.max(1, Math.floor((visibleSeconds * efficiency) / computedSubExposureS));
   const hasFlip = mount !== "fixed" && transit > visibleStart && transit < visibleEnd;
   const flipDowntimeMin = hasFlip ? 10 : 0;
   const usableCaptureSeconds = Math.max(0, visibleSeconds - flipDowntimeMin * 60);
-  const estimatedSubsAdjusted = Math.max(1, Math.floor((usableCaptureSeconds * efficiency) / subExposureS));
+  const estimatedSubsAdjusted = Math.max(1, Math.floor((usableCaptureSeconds * efficiency) / computedSubExposureS));
 
   const captureBlocks: Array<{
     target_id: string;
@@ -203,7 +258,7 @@ export async function GET(req: NextRequest) {
       target_name: target.name,
       start_utc: visibleStart.toISOString(),
       end_utc: flipStart.toISOString(),
-      sub_exposure_s: subExposureS,
+      sub_exposure_s: computedSubExposureS,
       estimated_subs: firstSubs,
       requires_meridian_flip: true,
     });
@@ -212,7 +267,7 @@ export async function GET(req: NextRequest) {
       target_name: target.name,
       start_utc: flipEnd.toISOString(),
       end_utc: visibleEnd.toISOString(),
-      sub_exposure_s: subExposureS,
+      sub_exposure_s: computedSubExposureS,
       estimated_subs: secondSubs,
       requires_meridian_flip: true,
     });
@@ -222,7 +277,7 @@ export async function GET(req: NextRequest) {
       target_name: target.name,
       start_utc: visibleStart.toISOString(),
       end_utc: visibleEnd.toISOString(),
-      sub_exposure_s: subExposureS,
+      sub_exposure_s: computedSubExposureS,
       estimated_subs: estimatedSubsAdjusted,
       requires_meridian_flip: false,
     });
@@ -242,7 +297,7 @@ export async function GET(req: NextRequest) {
     {
       type: "capture_start",
       time_utc: visibleStart.toISOString(),
-      note: `Start capture sequence (${subExposureS}s subs).`,
+      note: `Start capture sequence (${computedSubExposureS}s subs).`,
     },
     ...(hasFlip
       ? [
@@ -260,6 +315,12 @@ export async function GET(req: NextRequest) {
     },
   ];
 
+  const currentMonth = localMonthAtLongitude(atUtc, p.lon);
+  const effectiveBestMonths = rotateMonthsForSouthernHemisphere(target.best_months, p.lat);
+  const seasonScore = effectiveBestMonths?.includes(currentMonth) ? 1 : 0;
+  const visibilityScore = Math.min(1, Number((visibleSeconds / (8 * 3600)).toFixed(3)));
+  const combinedScore = Number((0.7 * visibilityScore + 0.3 * seasonScore).toFixed(3));
+
   const payload = {
     target: {
       id: target.id,
@@ -273,12 +334,22 @@ export async function GET(req: NextRequest) {
     setup: {
       mount,
       min_alt_deg: minAlt,
+      exposure: {
+        sub_exposure_s: computedSubExposureS,
+        gain: p.gain ?? 100,
+        subs: p.subs ?? estimatedSubsAdjusted,
+      },
     },
     sequence: [target.id],
     visibility_window: window,
+    score_context: {
+      visibility: visibilityScore,
+      season: seasonScore,
+      combined: combinedScore,
+    },
     capture_summary: {
       visible_hours: Number((visibleSeconds / 3600).toFixed(2)),
-      sub_exposure_s: subExposureS,
+      sub_exposure_s: computedSubExposureS,
       estimated_subs_raw: estimatedSubsTotal,
       estimated_subs_planned: estimatedSubsAdjusted,
       meridian_flip_required: hasFlip,
@@ -286,6 +357,17 @@ export async function GET(req: NextRequest) {
     capture_blocks: captureBlocks,
     timeline,
   };
+
+  if (exportMode === "csv") {
+    const csv = buildPlanCsv(payload);
+    return new NextResponse(csv, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="astro-plan-${target.id}.csv"`,
+      },
+    });
+  }
 
   return NextResponse.json(payload, { status: 200 });
 }

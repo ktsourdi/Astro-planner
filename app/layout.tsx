@@ -89,6 +89,20 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               >
                 ⭐ Recommendations
               </Link>
+              <Link
+                href="/planner"
+                onClick={() => setNavOpen(false)}
+                style={{
+                  color: pathname === "/planner" ? "var(--color-accent)" : "var(--color-text-secondary)",
+                  fontWeight: pathname === "/planner" ? 600 : 400,
+                  transition: "all var(--transition-fast)",
+                  padding: "var(--space-2) var(--space-3)",
+                  borderRadius: "var(--radius-md)",
+                  background: pathname === "/planner" ? "var(--color-accent-bg)" : "transparent",
+                }}
+              >
+                🗓️ Planner
+              </Link>
             </nav>
           </div>
         </header>

@@ -30,6 +30,13 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     minAlt: 10,
     maxMag: 12,
     bortle: 4,
+    minScore: 0.5,
+    subExposureS: 60,
+    gain: 100,
+    subs: 50,
+    experience: "intermediate" as "beginner" | "intermediate" | "advanced",
+    alertsEnabled: false,
+    alertLeadMin: 15,
   });
 
   // Persist to localStorage with TTL and load on mount
@@ -115,6 +122,48 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  function applyExperiencePreset(level: "beginner" | "intermediate" | "advanced") {
+    if (level === "beginner") {
+      setForm((f) => ({
+        ...f,
+        experience: "beginner",
+        mount: "tracker",
+        minAlt: 20,
+        maxMag: 10.5,
+        minScore: 0.65,
+        subExposureS: 30,
+        gain: 80,
+        subs: 40,
+      }));
+      return;
+    }
+    if (level === "advanced") {
+      setForm((f) => ({
+        ...f,
+        experience: "advanced",
+        mount: "guided",
+        minAlt: 10,
+        maxMag: 13,
+        minScore: 0.35,
+        subExposureS: 180,
+        gain: 100,
+        subs: 90,
+      }));
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      experience: "intermediate",
+      mount: "tracker",
+      minAlt: 15,
+      maxMag: 12,
+      minScore: 0.5,
+      subExposureS: 60,
+      gain: 100,
+      subs: 60,
+    }));
+  }
+
   function toParams() {
     const p = new URLSearchParams();
     (Object.keys(form) as (keyof typeof form)[]).forEach((k) => {
@@ -125,7 +174,7 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     return p;
   }
 
-  function persistAndNavigate(target: "plan" | "recommend") {
+  function persistAndNavigate(target: "plan" | "recommend" | "planner") {
     const params = toParams();
     if (target === "plan" && !form.targetId) return;
     const raw = params.toString();
@@ -140,6 +189,8 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
       const url = `/api/plan?${qs}`;
       console.debug("[setup] opening plan", { url });
       window.open(url, "_blank");
+    } else if (target === "planner") {
+      router.push("/planner");
     } else {
       router.push("/recommend");
     }
@@ -522,6 +573,25 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
           </div>
 
           <div className="form-group">
+            <label>Experience Preset</label>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "var(--space-3)" }}>
+              {(["beginner", "intermediate", "advanced"] as const).map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  className={form.experience === level ? "" : "btn-secondary"}
+                  onClick={() => applyExperiencePreset(level)}
+                >
+                  {level === "beginner" ? "🟢 Beginner" : level === "intermediate" ? "🟡 Intermediate" : "🔴 Advanced"}
+                </button>
+              ))}
+            </div>
+            <div className="text-sm text-muted" style={{ marginTop: "var(--space-2)" }}>
+              Presets set safe defaults for mount, target difficulty, and capture settings.
+            </div>
+          </div>
+
+          <div className="form-group">
             <label>Mount Type</label>
             <div style={{ 
               display: "grid", 
@@ -601,6 +671,61 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
           </div>
 
           <div className="form-group">
+            <label>Minimum Recommendation Score (difficulty filter)</label>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={form.minScore}
+              onChange={(e) => update("minScore", Number(e.target.value) as any)}
+            />
+            <div className="text-sm text-muted">Current: {(form.minScore * 100).toFixed(0)}%</div>
+          </div>
+
+          <div className="form-group">
+            <label>Capture Defaults (advanced)</label>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "var(--space-3)" }}>
+              <div>
+                <label>Sub Exposure (s)</label>
+                <input type="number" min={1} step={1} value={form.subExposureS} onChange={(e) => update("subExposureS", Number(e.target.value) as any)} />
+              </div>
+              <div>
+                <label>Gain</label>
+                <input type="number" min={0} step={1} value={form.gain} onChange={(e) => update("gain", Number(e.target.value) as any)} />
+              </div>
+              <div>
+                <label>Total Subs</label>
+                <input type="number" min={1} step={1} value={form.subs} onChange={(e) => update("subs", Number(e.target.value) as any)} />
+              </div>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+              <input
+                type="checkbox"
+                checked={form.alertsEnabled}
+                onChange={(e) => update("alertsEnabled", e.target.checked as any)}
+                style={{ width: "auto" }}
+              />
+              Enable browser window alerts
+            </label>
+            <div style={{ marginTop: "var(--space-2)" }}>
+              <label>Alert lead time before window start (minutes)</label>
+              <input
+                type="range"
+                min={0}
+                max={60}
+                step={5}
+                value={form.alertLeadMin}
+                onChange={(e) => update("alertLeadMin", Number(e.target.value) as any)}
+              />
+              <div className="text-sm text-muted">Current: {form.alertLeadMin} min</div>
+            </div>
+          </div>
+
+          <div className="form-group">
             <label>Specific Target (optional)</label>
             <select 
               value={form.targetId} 
@@ -635,6 +760,14 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
           style={{ flex: "1 1 200px" }}
         >
           ⭐ Get Recommendations
+        </button>
+        <button
+          type="button"
+          onClick={() => persistAndNavigate("planner")}
+          className="btn-secondary"
+          style={{ flex: "1 1 200px" }}
+        >
+          🗓️ Open Seasonal Planner
         </button>
         <button 
           type="button" 
