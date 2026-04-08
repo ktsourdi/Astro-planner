@@ -18,11 +18,40 @@ type Recommendation = {
   visibility_score?: number;
   visible_hours?: number;
   score: number;
+  score_breakdown?: {
+    visibility: number;
+    framing: number;
+    season: number;
+    moon: number;
+    weather: number;
+    sky_quality: number;
+  };
+  moon?: {
+    illumination_fraction: number;
+    average_altitude_deg: number | null;
+    average_separation_deg: number | null;
+    above_horizon_fraction: number;
+  };
+  weather?: {
+    avg_cloud_pct: number | null;
+    confidence: "high" | "medium" | "low";
+    sample_hours: number;
+  };
   suggested_capture: { sub_exposure_s: number; gain: number; subs: number; notes: string };
 };
 
 export default function RecommendPage() {
-  const [data, setData] = useState<{ setup?: any; debug?: ApiDebug; recommended_targets: Recommendation[]; filtered_out_examples?: any[] } | null>(null);
+  const [data, setData] = useState<{
+    setup?: any;
+    debug?: ApiDebug;
+    recommended_targets: Recommendation[];
+    filtered_out_examples?: any[];
+    context?: {
+      sky_quality?: { bortle: number; score: number };
+      weather_source?: string;
+      weather_generated_at_utc?: string | null;
+    };
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "high" | "medium">("all");
   const [sortBy, setSortBy] = useState<"score" | "framing" | "name">("score");
@@ -436,6 +465,14 @@ export default function RecommendPage() {
                 </div>
                 <div style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>
                   Visible Tonight
+                </div>
+              </div>
+              <div className="card card-compact" style={{ textAlign: "center" }}>
+                <div style={{ fontSize: "var(--font-size-xl)", fontWeight: 600, color: "var(--color-text-primary)" }}>
+                  Bortle {data.context?.sky_quality?.bortle ?? "-"}
+                </div>
+                <div style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>
+                  Sky quality input
                 </div>
               </div>
             </div>

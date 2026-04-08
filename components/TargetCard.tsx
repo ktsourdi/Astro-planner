@@ -6,6 +6,25 @@ type Props = {
     fill_ratio: number;
     framing_score: number;
     score: number;
+    score_breakdown?: {
+      visibility: number;
+      framing: number;
+      season: number;
+      moon: number;
+      weather: number;
+      sky_quality: number;
+    };
+    moon?: {
+      illumination_fraction: number;
+      average_altitude_deg: number | null;
+      average_separation_deg: number | null;
+      above_horizon_fraction: number;
+    };
+    weather?: {
+      avg_cloud_pct: number | null;
+      confidence: "high" | "medium" | "low";
+      sample_hours: number;
+    };
     window?: { start_utc: string; end_utc: string; alt_max_deg: number };
     suggested_capture: { sub_exposure_s: number; gain: number; subs: number; notes: string };
     image_url?: string;
@@ -355,6 +374,38 @@ function TargetCardImpl({ rec }: Props) {
           }}>
             Max altitude: {Math.round(rec.window.alt_max_deg)}°
           </div>
+        </div>
+      )}
+
+      {(rec.score_breakdown || rec.moon || rec.weather) && (
+        <div
+          style={{
+            marginBottom: "var(--space-4)",
+            padding: "var(--space-3)",
+            background: "var(--color-bg-secondary)",
+            borderRadius: "var(--radius-md)",
+            border: "1px solid var(--color-border)",
+          }}
+        >
+          <div style={{ fontSize: "var(--font-size-sm)", fontWeight: 500, marginBottom: "var(--space-2)" }}>
+            🧮 Ranking factors
+          </div>
+          {rec.score_breakdown && (
+            <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", lineHeight: 1.6 }}>
+              Visibility {(rec.score_breakdown.visibility * 100).toFixed(0)}% • Framing {(rec.score_breakdown.framing * 100).toFixed(0)}% • Moon {(rec.score_breakdown.moon * 100).toFixed(0)}% • Weather {(rec.score_breakdown.weather * 100).toFixed(0)}%
+            </div>
+          )}
+          {rec.moon && (
+            <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)", marginTop: "var(--space-1)" }}>
+              Moon {(rec.moon.illumination_fraction * 100).toFixed(0)}% lit
+              {rec.moon.average_separation_deg != null ? ` • separation ${rec.moon.average_separation_deg.toFixed(0)}°` : ""}
+            </div>
+          )}
+          {rec.weather && (
+            <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)", marginTop: "var(--space-1)" }}>
+              Clouds {rec.weather.avg_cloud_pct == null ? "n/a" : `${rec.weather.avg_cloud_pct.toFixed(0)}%`} • forecast {rec.weather.confidence}
+            </div>
+          )}
         </div>
       )}
 

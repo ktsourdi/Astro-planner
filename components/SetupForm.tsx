@@ -11,6 +11,7 @@ type Props = {
 
 type PlaceSuggestion = { place_id: string; display_name: string; lat: string; lon: string };
 type CameraSuggestion = { id: string; name: string; sensorW: number; sensorH: number; pixelUm: number | null };
+type SavedProfile = { id: string; name: string; data: any; savedAt: string };
 
 export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
   const router = useRouter();
@@ -28,11 +29,15 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     date: new Date().toISOString(),
     minAlt: 10,
     maxMag: 12,
+    bortle: 4,
   });
 
   // Persist to localStorage with TTL and load on mount
   const STORAGE_KEY = "astro-setup-v1";
+  const PROFILES_KEY = "astro-setup-profiles-v1";
   const TTL_DAYS = 30;
+  const [profileName, setProfileName] = useState("");
+  const [savedProfiles, setSavedProfiles] = useState<SavedProfile[]>([]);
 
   useEffect(() => {
     try {
@@ -61,6 +66,50 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch {}
   }, [form]);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(PROFILES_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      setSavedProfiles(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setSavedProfiles([]);
+    }
+  }, []);
+
+  function persistProfiles(next: SavedProfile[]) {
+    setSavedProfiles(next);
+    try {
+      window.localStorage.setItem(PROFILES_KEY, JSON.stringify(next));
+    } catch {}
+  }
+
+  function saveCurrentProfile() {
+    const name = profileName.trim();
+    if (!name) return;
+    const id = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`;
+    const profile: SavedProfile = {
+      id,
+      name,
+      data: form,
+      savedAt: new Date().toISOString(),
+    };
+    persistProfiles([profile, ...savedProfiles].slice(0, 12));
+    setProfileName("");
+  }
+
+  function loadProfile(profile: SavedProfile) {
+    setForm((f) => ({
+      ...f,
+      ...profile.data,
+      lat: f.lat !== "" ? f.lat : profile.data.lat,
+      lon: f.lon !== "" ? f.lon : profile.data.lon,
+    }));
+  }
+
+  function deleteProfile(profileId: string) {
+    persistProfiles(savedProfiles.filter((p) => p.id !== profileId));
+  }
 
   const targetOptions = useMemo(() => targets.map((t) => ({ id: t.id, name: t.name })), []);
 
@@ -424,6 +473,57 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
       {activeSection === "settings" && (
         <div className="animate-fadeIn">
           <div className="form-group">
+            <label>Saved Profiles</label>
+            <div style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-3)", flexWrap: "wrap" }}>
+              <input
+                type="text"
+                value={profileName}
+                onChange={(e) => setProfileName(e.target.value)}
+                placeholder="e.g., Backyard rig"
+                style={{ flex: "1 1 220px" }}
+              />
+              <button type="button" onClick={saveCurrentProfile} className="btn-secondary">
+                💾 Save current
+              </button>
+            </div>
+            {savedProfiles.length > 0 ? (
+              <div style={{ display: "grid", gap: "var(--space-2)" }}>
+                {savedProfiles.map((p) => (
+                  <div
+                    key={p.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "var(--space-2)",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "var(--radius-md)",
+                      padding: "var(--space-2) var(--space-3)",
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 500 }}>{p.name}</div>
+                      <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
+                        Saved {new Date(p.savedAt).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                      <button type="button" className="btn-ghost" onClick={() => loadProfile(p)}>
+                        Load
+                      </button>
+                      <button type="button" className="btn-ghost" onClick={() => deleteProfile(p.id)}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-muted">No profiles saved yet.</div>
+            )}
+          </div>
+
+          <div className="form-group">
             <label>Mount Type</label>
             <div style={{ 
               display: "grid", 
@@ -487,6 +587,19 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
               onChange={(e) => update("maxMag", Number(e.target.value) as any)}
             />
             <div className="text-sm text-muted">Current: {form.maxMag}</div>
+          </div>
+
+          <div className="form-group">
+            <label>Bortle Scale (1 = dark sky, 9 = city center)</label>
+            <input
+              type="range"
+              min={1}
+              max={9}
+              step={1}
+              value={form.bortle}
+              onChange={(e) => update("bortle", Number(e.target.value) as any)}
+            />
+            <div className="text-sm text-muted">Current: Bortle {form.bortle}</div>
           </div>
 
           <div className="form-group">
