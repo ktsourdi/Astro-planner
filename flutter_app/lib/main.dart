@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -248,7 +249,7 @@ class SetupPage extends StatefulWidget {
 
 class _SetupPageState extends State<SetupPage> {
   final _formKey = GlobalKey<FormState>();
-  final _baseUrl = TextEditingController(text: 'http://10.0.2.2:3000');
+  final _baseUrl = TextEditingController(text: _defaultBaseUrl());
   final _lat = TextEditingController(text: '37.9838');
   final _lon = TextEditingController(text: '23.7275');
   final _sensorW = TextEditingController(text: '23.5');
@@ -267,6 +268,11 @@ class _SetupPageState extends State<SetupPage> {
   List<CameraSuggestion> _cameraSuggestions = [];
 
   AstroApi get _api => AstroApi(_baseUrl.text.trim());
+
+  static String _defaultBaseUrl() {
+    if (Platform.isAndroid) return 'http://10.0.2.2:3000';
+    return 'http://localhost:3000';
+  }
 
   @override
   void dispose() {
@@ -713,8 +719,8 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
                                             widget.api.imageUrl(t.name),
                                             height: 160,
                                             width: double.infinity,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => Container(
+                                           fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => Container(
                                               height: 160,
                                               color: Colors.black12,
                                               alignment: Alignment.center,

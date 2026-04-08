@@ -26,7 +26,7 @@ flutter pub get
 flutter run
 ```
 
-On Android emulator, use `http://10.0.2.2:3000` as backend URL in the app.
+Default backend URL is `http://10.0.2.2:3000` on Android emulator, and `http://localhost:3000` on other platforms.
 
 ## ✨ Features
 - Input your **location** and **setup** (sensor, pixel size, focal length, f-ratio, mount, camera gain).
