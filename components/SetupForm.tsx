@@ -43,6 +43,7 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
   const STORAGE_KEY = "astro-setup-v1";
   const PROFILES_KEY = "astro-setup-profiles-v1";
   const TTL_DAYS = 30;
+  const MAX_SAVED_PROFILES = 12;
   const [profileName, setProfileName] = useState("");
   const [savedProfiles, setSavedProfiles] = useState<SavedProfile[]>([]);
 
@@ -94,10 +95,20 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
   function saveCurrentProfile() {
     const name = profileName.trim();
     if (!name) return;
+    const fallbackRandom = () => {
+      if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+        const bytes = new Uint8Array(12);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes)
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+      }
+      return `${Date.now()}-${Math.floor(performance.now() * 1000)}`;
+    };
     const entropy =
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
         ? crypto.randomUUID()
-        : `${Date.now()}-${Math.floor(performance.now() * 1000)}-${Math.random().toString(36).slice(2, 10)}`;
+        : fallbackRandom();
     const id = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${entropy}`;
     const profile: SavedProfile = {
       id,
@@ -105,7 +116,7 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
       data: form,
       savedAt: new Date().toISOString(),
     };
-    persistProfiles([profile, ...savedProfiles].slice(0, 12));
+    persistProfiles([profile, ...savedProfiles].slice(0, MAX_SAVED_PROFILES));
     setProfileName("");
   }
 

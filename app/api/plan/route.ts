@@ -159,36 +159,44 @@ function rotateMonthsForSouthernHemisphere(months: number[] | undefined, latDeg:
 }
 
 function buildPlanCsv(payload: any): string {
+  const csvSafe = (value: unknown) => {
+    const raw = String(value ?? "");
+    const escaped = raw.replace(/"/g, '""');
+    const formulaSafe = /^[=\-+@]/.test(escaped) ? `'${escaped}` : escaped;
+    return `"${formulaSafe}"`;
+  };
   const lines: string[] = [];
   lines.push("section,key,value");
-  lines.push(`meta,target_id,${payload.target.id}`);
-  lines.push(`meta,target_name,"${payload.target.name.replace(/"/g, '""')}"`);
-  lines.push(`meta,at_utc,${payload.atUtc}`);
-  lines.push(`meta,lat,${payload.location.lat}`);
-  lines.push(`meta,lon,${payload.location.lon}`);
-  lines.push(`setup,mount,${payload.setup.mount}`);
-  lines.push(`setup,min_alt_deg,${payload.setup.min_alt_deg}`);
-  lines.push(`setup,sub_exposure_s,${payload.setup.exposure.sub_exposure_s}`);
-  lines.push(`setup,gain,${payload.setup.exposure.gain}`);
-  lines.push(`setup,subs,${payload.setup.exposure.subs}`);
-  lines.push(`score,visibility,${payload.score_context.visibility}`);
-  lines.push(`score,season,${payload.score_context.season}`);
-  lines.push(`score,combined,${payload.score_context.combined}`);
-  lines.push(`window,start_utc,${payload.visibility_window.start_utc}`);
-  lines.push(`window,end_utc,${payload.visibility_window.end_utc}`);
-  lines.push(`window,alt_max_deg,${payload.visibility_window.alt_max_deg}`);
-  lines.push(`window,transit_utc,${payload.visibility_window.transit_utc}`);
+  lines.push(`meta,target_id,${csvSafe(payload.target.id)}`);
+  lines.push(`meta,target_name,${csvSafe(payload.target.name)}`);
+  lines.push(`meta,at_utc,${csvSafe(payload.atUtc)}`);
+  lines.push(`meta,lat,${csvSafe(payload.location.lat)}`);
+  lines.push(`meta,lon,${csvSafe(payload.location.lon)}`);
+  lines.push(`setup,mount,${csvSafe(payload.setup.mount)}`);
+  lines.push(`setup,min_alt_deg,${csvSafe(payload.setup.min_alt_deg)}`);
+  lines.push(`setup,sub_exposure_s,${csvSafe(payload.setup.exposure.sub_exposure_s)}`);
+  lines.push(`setup,gain,${csvSafe(payload.setup.exposure.gain)}`);
+  lines.push(`setup,subs,${csvSafe(payload.setup.exposure.subs)}`);
+  lines.push(`score,visibility,${csvSafe(payload.score_context.visibility)}`);
+  lines.push(`score,season,${csvSafe(payload.score_context.season)}`);
+  lines.push(`score,combined,${csvSafe(payload.score_context.combined)}`);
+  lines.push(`window,start_utc,${csvSafe(payload.visibility_window.start_utc)}`);
+  lines.push(`window,end_utc,${csvSafe(payload.visibility_window.end_utc)}`);
+  lines.push(`window,alt_max_deg,${csvSafe(payload.visibility_window.alt_max_deg)}`);
+  lines.push(`window,transit_utc,${csvSafe(payload.visibility_window.transit_utc)}`);
   lines.push("");
   lines.push("capture_blocks,target_id,target_name,start_utc,end_utc,sub_exposure_s,estimated_subs,requires_meridian_flip");
   for (const b of payload.capture_blocks) {
     lines.push(
-      `${b.target_id},"${String(b.target_name).replace(/"/g, '""')}",${b.start_utc},${b.end_utc},${b.sub_exposure_s},${b.estimated_subs},${b.requires_meridian_flip}`
+      `${csvSafe(b.target_id)},${csvSafe(b.target_name)},${csvSafe(b.start_utc)},${csvSafe(b.end_utc)},${csvSafe(
+        b.sub_exposure_s
+      )},${csvSafe(b.estimated_subs)},${csvSafe(b.requires_meridian_flip)}`
     );
   }
   lines.push("");
   lines.push("timeline,type,time_utc,note");
   for (const t of payload.timeline) {
-    lines.push(`${t.type},${t.time_utc},"${String(t.note).replace(/"/g, '""')}"`);
+    lines.push(`${csvSafe(t.type)},${csvSafe(t.time_utc)},${csvSafe(t.note)}`);
   }
   return `${lines.join("\n")}\n`;
 }

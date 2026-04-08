@@ -146,6 +146,7 @@ function addDays(date: Date, days: number): Date {
 }
 
 const DAYS_PER_WEEK = 7;
+// Planner month preset is intentionally a simple rolling 30-night window.
 const DAYS_PER_MONTH_APPROXIMATE = 30;
 const DAYS_PER_SEASON = 90;
 

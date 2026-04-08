@@ -51,6 +51,10 @@ import { memo, useEffect, useMemo, useState } from "react";
 // Maximum setTimeout delay in JavaScript (~24.8 days).
 const MAX_TIMEOUT_MS = 2147483647;
 
+function safeNotificationLabel(value: string): string {
+  return String(value).replace(/[\r\n\t]/g, " ").slice(0, 120);
+}
+
 function TargetCardImpl({ rec, setup }: Props) {
   const [previewRotationDeg, setPreviewRotationDeg] = useState(0);
   const [alertStatus, setAlertStatus] = useState<string>("");
@@ -99,18 +103,19 @@ function TargetCardImpl({ rec, setup }: Props) {
     const now = Date.now();
 
     const schedule = () => {
+      const targetLabel = safeNotificationLabel(rec.name);
       const startDelay = notifyStartMs - now;
       const stopDelay = stopMs - now;
       if (startDelay > 0) {
         window.setTimeout(() => {
-          new Notification(`Capture window opening: ${rec.name}`, {
+          new Notification(`Capture window opening: ${targetLabel}`, {
             body: leadMinutes > 0 ? `Starts in ${leadMinutes} minutes.` : "Your capture window is starting now.",
           });
         }, Math.min(startDelay, MAX_TIMEOUT_MS));
       }
       if (stopDelay > 0) {
         window.setTimeout(() => {
-          new Notification(`Capture window closing: ${rec.name}`, {
+          new Notification(`Capture window closing: ${targetLabel}`, {
             body: "Stop capture or switch to your next target.",
           });
         }, Math.min(stopDelay, MAX_TIMEOUT_MS));
