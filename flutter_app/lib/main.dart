@@ -602,6 +602,15 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
     return list;
   }
 
+  String _formatLocalDateTime(DateTime value) {
+    final date = MaterialLocalizations.of(context).formatShortDate(value);
+    final time = MaterialLocalizations.of(context).formatTimeOfDay(
+      TimeOfDay.fromDateTime(value),
+      alwaysUse24HourFormat: true,
+    );
+    return '$date $time';
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtered = _filtered;
@@ -725,7 +734,9 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
                                         ),
                                         if (t.window != null) ...[
                                           const SizedBox(height: 8),
-                                          Text('Visible: ${t.window!.startUtc} → ${t.window!.endUtc}'),
+                                          Text(
+                                            'Visible: ${_formatLocalDateTime(t.window!.startUtc)} → ${_formatLocalDateTime(t.window!.endUtc)}',
+                                          ),
                                           Text('Max altitude: ${t.window!.altMaxDeg.toStringAsFixed(1)}°'),
                                         ],
                                         const SizedBox(height: 8),
