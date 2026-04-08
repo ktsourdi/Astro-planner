@@ -146,11 +146,11 @@ function addDays(date: Date, days: number): Date {
 }
 
 const DAYS_PER_WEEK = 7;
-const DAYS_PER_MONTH = 30;
+const DAYS_PER_MONTH_APPROXIMATE = 30;
 const DAYS_PER_SEASON = 90;
 
 function countDaysForRange(range: "week" | "month" | "season"): number {
-  if (range === "month") return DAYS_PER_MONTH;
+  if (range === "month") return DAYS_PER_MONTH_APPROXIMATE;
   if (range === "season") return DAYS_PER_SEASON;
   return DAYS_PER_WEEK;
 }

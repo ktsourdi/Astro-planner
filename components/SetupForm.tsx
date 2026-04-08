@@ -97,7 +97,7 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     const entropy =
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
         ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        : `${Date.now()}-${Math.floor(performance.now() * 1000)}-${Math.random().toString(36).slice(2, 10)}`;
     const id = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${entropy}`;
     const profile: SavedProfile = {
       id,

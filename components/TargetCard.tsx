@@ -48,6 +48,7 @@ type Props = {
 
 import { memo, useEffect, useMemo, useState } from "react";
 
+// Maximum setTimeout delay in JavaScript (~24.8 days).
 const MAX_TIMEOUT_MS = 2147483647;
 
 function TargetCardImpl({ rec, setup }: Props) {

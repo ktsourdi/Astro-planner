@@ -135,7 +135,9 @@ function computeSubExposureSeconds(mount: "fixed" | "tracker" | "guided"): numbe
   return 10;
 }
 
+// Minutes reserved before capture start for mount/tripod setup and alignment.
 const SETUP_LEAD_MINUTES = 20;
+// Minutes reserved immediately before capture for focus and framing checks.
 const FOCUS_LEAD_MINUTES = 10;
 const MOUNT_EFFICIENCY: Record<"fixed" | "tracker" | "guided", number> = {
   fixed: 0.8,
