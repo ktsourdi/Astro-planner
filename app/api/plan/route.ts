@@ -135,6 +135,14 @@ function computeSubExposureSeconds(mount: "fixed" | "tracker" | "guided"): numbe
   return 10;
 }
 
+const SETUP_LEAD_MINUTES = 20;
+const FOCUS_LEAD_MINUTES = 10;
+const MOUNT_EFFICIENCY: Record<"fixed" | "tracker" | "guided", number> = {
+  fixed: 0.8,
+  tracker: 0.85,
+  guided: 0.9,
+};
+
 function localMonthAtLongitude(dateIso: string | undefined, lonDeg: number): number {
   const base = dateIso ? new Date(dateIso) : new Date();
   const offsetMinutes = lonDeg * 4;
@@ -219,14 +227,12 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const setupLeadMin = 20;
-  const focusLeadMin = 10;
-  const preCaptureStart = new Date(new Date(window.start_utc).getTime() - (setupLeadMin + focusLeadMin) * 60 * 1000);
+  const preCaptureStart = new Date(new Date(window.start_utc).getTime() - (SETUP_LEAD_MINUTES + FOCUS_LEAD_MINUTES) * 60 * 1000);
   const visibleStart = new Date(window.start_utc);
   const visibleEnd = new Date(window.end_utc);
   const transit = new Date(window.transit_utc);
   const subExposureS = computeSubExposureSeconds(mount);
-  const efficiency = mount === "guided" ? 0.9 : mount === "tracker" ? 0.85 : 0.8;
+  const efficiency = MOUNT_EFFICIENCY[mount];
   const visibleSeconds = Math.max(0, (visibleEnd.getTime() - visibleStart.getTime()) / 1000);
   const computedSubExposureS = p.subExposureS ?? subExposureS;
   const estimatedSubsTotal = Math.max(1, Math.floor((visibleSeconds * efficiency) / computedSubExposureS));
@@ -291,7 +297,7 @@ export async function GET(req: NextRequest) {
     },
     {
       type: "focus_and_framing",
-      time_utc: new Date(visibleStart.getTime() - focusLeadMin * 60 * 1000).toISOString(),
+      time_utc: new Date(visibleStart.getTime() - FOCUS_LEAD_MINUTES * 60 * 1000).toISOString(),
       note: `Slew to ${target.name}, focus, and frame before capture window starts.`,
     },
     {

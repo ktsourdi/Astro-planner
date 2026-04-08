@@ -48,6 +48,8 @@ type Props = {
 
 import { memo, useEffect, useMemo, useState } from "react";
 
+const MAX_TIMEOUT_MS = 2147483647;
+
 function TargetCardImpl({ rec, setup }: Props) {
   const [previewRotationDeg, setPreviewRotationDeg] = useState(0);
   const [alertStatus, setAlertStatus] = useState<string>("");
@@ -103,14 +105,14 @@ function TargetCardImpl({ rec, setup }: Props) {
           new Notification(`Capture window opening: ${rec.name}`, {
             body: leadMinutes > 0 ? `Starts in ${leadMinutes} minutes.` : "Your capture window is starting now.",
           });
-        }, Math.min(startDelay, 2147483647));
+        }, Math.min(startDelay, MAX_TIMEOUT_MS));
       }
       if (stopDelay > 0) {
         window.setTimeout(() => {
           new Notification(`Capture window closing: ${rec.name}`, {
             body: "Stop capture or switch to your next target.",
           });
-        }, Math.min(stopDelay, 2147483647));
+        }, Math.min(stopDelay, MAX_TIMEOUT_MS));
       }
       setAlertsScheduled(true);
       setAlertStatus(stopDelay <= 0 ? "Window already ended; no alerts were scheduled." : "Alerts scheduled for this window.");
