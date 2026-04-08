@@ -158,6 +158,7 @@ type WeatherData = {
   cloudByHour: Map<string, number>;
   generatedAtUtc: string;
 };
+const WEATHER_REVALIDATE_SECONDS = 60 * 30;
 
 function hourKeyUtc(date: Date): string {
   return `${date.toISOString().slice(0, 13)}:00`;
@@ -168,7 +169,7 @@ async function fetchHourlyCloudCover(lat: number, lon: number): Promise<WeatherD
     String(lat)
   )}&longitude=${encodeURIComponent(String(lon))}&hourly=cloud_cover&forecast_days=2&timezone=UTC`;
   try {
-    const resp = await fetch(url, { next: { revalidate: 60 * 30 } });
+    const resp = await fetch(url, { next: { revalidate: WEATHER_REVALIDATE_SECONDS } });
     if (!resp.ok) return null;
     const json = await resp.json();
     const times: string[] = Array.isArray(json?.hourly?.time) ? json.hourly.time : [];

@@ -256,7 +256,7 @@ export async function GET(req: NextRequest) {
     {
       type: "capture_stop",
       time_utc: visibleEnd.toISOString(),
-      note: "Stop lights for this target window.",
+      note: "Stop capture for this target window.",
     },
   ];
 
@@ -289,4 +289,3 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(payload, { status: 200 });
 }
-

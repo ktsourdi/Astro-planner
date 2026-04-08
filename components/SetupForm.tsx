@@ -102,8 +102,6 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     setForm((f) => ({
       ...f,
       ...profile.data,
-      lat: f.lat !== "" ? f.lat : profile.data.lat,
-      lon: f.lon !== "" ? f.lon : profile.data.lon,
     }));
   }
 
