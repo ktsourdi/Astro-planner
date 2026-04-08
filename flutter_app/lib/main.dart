@@ -200,7 +200,7 @@ class AstroApi {
     final uri = _uri('/api/camera', {'query': query});
     final resp = await http.get(uri);
     if (resp.statusCode != 200) {
-      throw Exception('Camera search failed (${resp.statusCode})');
+      throw Exception('Camera search failed (${resp.statusCode}): ${resp.body}');
     }
     final json = jsonDecode(resp.body) as Map<String, dynamic>;
     final items = (json['items'] as List<dynamic>? ?? [])
@@ -221,7 +221,7 @@ class AstroApi {
 
   Future<String> getPlan(SetupParams params) async {
     if (params.targetId.trim().isEmpty) {
-      throw Exception('Set target ID first');
+      throw Exception('Target ID is required for plan generation');
     }
     final uri = _uri('/api/plan', {
       'lat': params.lat.toString(),
