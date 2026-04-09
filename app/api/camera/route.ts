@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import localCameras from "@/data/cameras.json";
+import { jsonWithApiContract } from "@/lib/api-contract";
 
 type CameraSpec = {
   brand: string;
@@ -58,7 +59,7 @@ export async function GET(req: NextRequest) {
   const query = (searchParams.get("query") || "").trim();
   console.debug("[api/camera] query", { query });
   if (!query) {
-    return NextResponse.json({ items: [] }, { status: 200 });
+    return jsonWithApiContract({ items: [] }, { status: 200 });
   }
   let specs: CameraSpec[] = [];
   try {
@@ -117,6 +118,5 @@ export async function GET(req: NextRequest) {
       })),
     };
   console.debug("[api/camera] returning items", { count: payload.items.length });
-  return NextResponse.json(payload, { status: 200 });
+  return jsonWithApiContract(payload, { status: 200 });
 }
-

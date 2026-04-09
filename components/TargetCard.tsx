@@ -6,16 +6,150 @@ type Props = {
     fill_ratio: number;
     framing_score: number;
     score: number;
+    score_breakdown?: {
+      visibility: number;
+      framing: number;
+      season: number;
+      moon: number;
+      weather: number;
+      sky_quality: number;
+    };
+    moon?: {
+      illumination_fraction: number;
+      average_altitude_deg: number | null;
+      average_separation_deg: number | null;
+      above_horizon_fraction: number;
+    };
+    weather?: {
+      avg_cloud_pct: number | null;
+      confidence: "high" | "medium" | "low";
+      sample_hours: number;
+    };
     window?: { start_utc: string; end_utc: string; alt_max_deg: number };
     suggested_capture: { sub_exposure_s: number; gain: number; subs: number; notes: string };
     image_url?: string;
     description?: string;
   };
+  setup?: {
+    lat?: number;
+    lon?: number;
+    date?: string;
+    mount?: "fixed" | "tracker" | "guided";
+    minAlt?: number;
+    sensorW?: number;
+    sensorH?: number;
+    subExposureS?: number;
+    gain?: number;
+    subs?: number;
+    alertsEnabled?: boolean;
+    alertLeadMin?: number;
+  };
 };
 
-import { memo } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 
-function TargetCardImpl({ rec }: Props) {
+// Maximum setTimeout delay in JavaScript (~24.8 days).
+const MAX_TIMEOUT_MS = 2147483647;
+
+function safeNotificationLabel(value: string): string {
+  return String(value).replace(/[\r\n\t]/g, " ").slice(0, 120);
+}
+
+function TargetCardImpl({ rec, setup }: Props) {
+  const [previewRotationDeg, setPreviewRotationDeg] = useState(0);
+  const [alertStatus, setAlertStatus] = useState<string>("");
+  const [alertsScheduled, setAlertsScheduled] = useState(false);
+
+  const fovRatio = setup?.sensorW && setup?.sensorH ? setup.sensorW / setup.sensorH : 1.5;
+  const targetVisualPct = Math.min(220, Math.max(12, rec.fill_ratio * 100));
+  const mosaicPanels = rec.fill_ratio > 2 ? 4 : rec.fill_ratio > 1 ? 2 : 1;
+
+  function buildPlanUrl(format: "json" | "csv" = "json") {
+    if (setup?.lat == null || setup?.lon == null) return null;
+    const params = new URLSearchParams();
+    params.set("lat", String(setup.lat));
+    params.set("lon", String(setup.lon));
+    params.set("targetId", rec.id);
+    if (setup.date) params.set("date", setup.date);
+    if (setup.mount) params.set("mount", setup.mount);
+    if (setup.minAlt != null) params.set("minAlt", String(setup.minAlt));
+    if (setup.subExposureS != null) params.set("subExposureS", String(setup.subExposureS));
+    if (setup.gain != null) params.set("gain", String(setup.gain));
+    if (setup.subs != null) params.set("subs", String(setup.subs));
+    params.set("export", format);
+    return `/api/plan?${params.toString()}`;
+  }
+
+  const recommendedPlanUrl = useMemo(() => buildPlanUrl("json"), [setup, rec.id]);
+  const recommendedCsvUrl = useMemo(() => buildPlanUrl("csv"), [setup, rec.id]);
+
+  function showBlockedFallback() {
+    setAlertStatus("Notifications are blocked in this browser. Enable notification permission to schedule alerts.");
+  }
+
+  function scheduleAlerts() {
+    if (!rec.window) {
+      setAlertStatus("No visible window available for alerts.");
+      return;
+    }
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      setAlertStatus("This browser does not support notifications.");
+      return;
+    }
+    const leadMinutes = Math.max(0, Number(setup?.alertLeadMin ?? 0));
+    const startMs = new Date(rec.window.start_utc).getTime();
+    const stopMs = new Date(rec.window.end_utc).getTime();
+    const notifyStartMs = startMs - leadMinutes * 60000;
+    const now = Date.now();
+    const targetLabel = safeNotificationLabel(rec.name);
+
+    const schedule = () => {
+      const startDelay = notifyStartMs - now;
+      const stopDelay = stopMs - now;
+      if (startDelay > 0) {
+        window.setTimeout(() => {
+          new Notification(`Capture window opening: ${targetLabel}`, {
+            body: leadMinutes > 0 ? `Starts in ${leadMinutes} minutes.` : "Your capture window is starting now.",
+          });
+        }, Math.min(startDelay, MAX_TIMEOUT_MS));
+      }
+      if (stopDelay > 0) {
+        window.setTimeout(() => {
+          new Notification(`Capture window closing: ${targetLabel}`, {
+            body: "Stop capture or switch to your next target.",
+          });
+        }, Math.min(stopDelay, MAX_TIMEOUT_MS));
+      }
+      setAlertsScheduled(true);
+      setAlertStatus(stopDelay <= 0 ? "Window already ended; no alerts were scheduled." : "Alerts scheduled for this window.");
+    };
+
+    if (Notification.permission === "granted") {
+      schedule();
+      return;
+    }
+    if (Notification.permission === "denied") {
+      showBlockedFallback();
+      return;
+    }
+    Notification.requestPermission()
+      .then((permission) => {
+        if (permission !== "granted") {
+          showBlockedFallback();
+          return;
+        }
+        schedule();
+      })
+      .catch(() => {
+        setAlertStatus("Unable to request notification permission.");
+      });
+  }
+
+  useEffect(() => {
+    if (!setup?.alertsEnabled || !rec.window || alertsScheduled) return;
+    setAlertStatus("Alerts enabled in profile. Click schedule to activate this target’s start/stop notifications.");
+  }, [setup?.alertsEnabled, rec.window, alertsScheduled]);
+
   const getFramingBadge = () => {
     if (rec.framing_score >= 0.8) return { text: "Perfect Framing", class: "badge-success" };
     if (rec.framing_score >= 0.7) return { text: "Great Framing", class: "badge-success" };
@@ -355,6 +489,116 @@ function TargetCardImpl({ rec }: Props) {
           }}>
             Max altitude: {Math.round(rec.window.alt_max_deg)}°
           </div>
+          <div style={{ marginTop: "var(--space-2)", display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+            {recommendedPlanUrl && (
+              <a href={recommendedPlanUrl} target="_blank" rel="noreferrer" className="btn-ghost" style={{ textDecoration: "none", fontSize: "var(--font-size-sm)" }}>
+                📋 Plan JSON
+              </a>
+            )}
+            {recommendedCsvUrl && (
+              <a href={recommendedCsvUrl} target="_blank" rel="noreferrer" className="btn-ghost" style={{ textDecoration: "none", fontSize: "var(--font-size-sm)" }}>
+                ⬇️ Export CSV
+              </a>
+            )}
+            <button type="button" className="btn-ghost" onClick={scheduleAlerts} style={{ fontSize: "var(--font-size-sm)" }}>
+              🔔 Schedule alerts
+            </button>
+          </div>
+          {alertStatus && (
+            <div style={{ marginTop: "var(--space-2)", fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
+              {alertStatus}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div
+        style={{
+          marginBottom: "var(--space-4)",
+          padding: "var(--space-3)",
+          background: "var(--color-bg-secondary)",
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--color-border)",
+        }}
+      >
+        <div style={{ fontSize: "var(--font-size-sm)", fontWeight: 500, marginBottom: "var(--space-2)" }}>🧩 Framing & mosaic preview</div>
+        <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap", alignItems: "center" }}>
+          <div
+            style={{
+              position: "relative",
+              width: 170,
+              height: 110,
+              border: "1px solid var(--color-border-light)",
+              background: "var(--color-bg-tertiary)",
+              overflow: "hidden",
+              borderRadius: "var(--radius-sm)",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                inset: "12%",
+                border: "1px solid var(--color-accent)",
+                transform: `rotate(${previewRotationDeg}deg)`,
+                transformOrigin: "center center",
+                borderRadius: "2px",
+                aspectRatio: String(fovRatio),
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: "50%",
+                width: `${targetVisualPct}%`,
+                height: `${targetVisualPct}%`,
+                transform: "translate(-50%, -50%)",
+                borderRadius: "50%",
+                border: "1px dashed var(--color-warning)",
+                background: "rgba(210, 153, 34, 0.1)",
+              }}
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <label>Preview rotation ({previewRotationDeg}°)</label>
+            <input type="range" min={0} max={180} step={1} value={previewRotationDeg} onChange={(e) => setPreviewRotationDeg(Number(e.target.value))} />
+            <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)", marginTop: "var(--space-1)" }}>
+              Suggested layout: {mosaicPanels === 1 ? "Single panel" : mosaicPanels === 2 ? "2-panel mosaic" : "4-panel mosaic"}
+              {rec.fill_ratio > 1 ? " (target exceeds current FOV)" : ""}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {(rec.score_breakdown || rec.moon || rec.weather) && (
+        <div
+          style={{
+            marginBottom: "var(--space-4)",
+            padding: "var(--space-3)",
+            background: "var(--color-bg-secondary)",
+            borderRadius: "var(--radius-md)",
+            border: "1px solid var(--color-border)",
+          }}
+        >
+          <div style={{ fontSize: "var(--font-size-sm)", fontWeight: 500, marginBottom: "var(--space-2)" }}>
+            🧮 Ranking factors
+          </div>
+          {rec.score_breakdown && (
+            <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", lineHeight: 1.6 }}>
+              Visibility {(rec.score_breakdown.visibility * 100).toFixed(0)}% • Framing {(rec.score_breakdown.framing * 100).toFixed(0)}% • Moon {(rec.score_breakdown.moon * 100).toFixed(0)}% • Weather {(rec.score_breakdown.weather * 100).toFixed(0)}%
+            </div>
+          )}
+          {rec.moon && (
+            <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)", marginTop: "var(--space-1)" }}>
+              Moon {(rec.moon.illumination_fraction * 100).toFixed(0)}% lit
+              {rec.moon.average_separation_deg != null ? ` • separation ${rec.moon.average_separation_deg.toFixed(0)}°` : ""}
+            </div>
+          )}
+          {rec.weather && (
+            <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)", marginTop: "var(--space-1)" }}>
+              Clouds {rec.weather.avg_cloud_pct == null ? "n/a" : `${rec.weather.avg_cloud_pct.toFixed(0)}%`} • forecast {rec.weather.confidence}
+            </div>
+          )}
         </div>
       )}
 

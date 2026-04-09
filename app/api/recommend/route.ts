@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import localTargets from "@/data/targets.json";
 import SunCalc from "suncalc";
 import { z } from "zod";
+import { jsonWithApiContract } from "@/lib/api-contract";
 
 const querySchema = z.object({
   lat: z.coerce.number().min(-90).max(90),
@@ -16,6 +17,7 @@ const querySchema = z.object({
   targetId: z.string().optional(),
   minAlt: z.coerce.number().min(0).max(89).default(10).optional(),
   maxMag: z.coerce.number().min(-10).max(20).default(12).optional(),
+  bortle: z.coerce.number().min(1).max(9).default(4).optional(),
   // How many recommendations to return (after filtering and sorting)
   limit: z.coerce.number().min(1).max(1000).default(200).optional(),
   // How many OpenNGC rows to scan (performance lever)
@@ -120,6 +122,93 @@ function altitudeDegreesAt(date: Date, latDeg: number, lonDeg: number, raHours: 
   const sinAlt = Math.sin(phi) * Math.sin(delta) + Math.cos(phi) * Math.cos(delta) * Math.cos(H);
   const alt = Math.asin(Math.max(-1, Math.min(1, sinAlt)));
   return toDegrees(alt);
+}
+
+function horizontalCoordsAt(
+  date: Date,
+  latDeg: number,
+  lonDeg: number,
+  raHours: number,
+  decDeg: number
+): { altDeg: number; azRad: number } {
+  const gmst = gmstDegrees(date);
+  const lst = normalizeDegrees(gmst + lonDeg);
+  const raDeg = raHours * 15;
+  const hourAngle = normalizeDegrees(lst - raDeg);
+  const H = toRadians(hourAngle);
+  const phi = toRadians(latDeg);
+  const delta = toRadians(decDeg);
+  const sinAlt = Math.sin(phi) * Math.sin(delta) + Math.cos(phi) * Math.cos(delta) * Math.cos(H);
+  const alt = Math.asin(Math.max(-1, Math.min(1, sinAlt)));
+  const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(delta) * Math.cos(phi));
+  return { altDeg: toDegrees(alt), azRad: az };
+}
+
+function angularSeparationDeg(alt1Deg: number, az1Rad: number, alt2Deg: number, az2Rad: number): number {
+  const alt1 = toRadians(alt1Deg);
+  const alt2 = toRadians(alt2Deg);
+  const cosSep = Math.sin(alt1) * Math.sin(alt2) + Math.cos(alt1) * Math.cos(alt2) * Math.cos(az1Rad - az2Rad);
+  return toDegrees(Math.acos(Math.max(-1, Math.min(1, cosSep))));
+}
+
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
+type WeatherData = {
+  cloudByHour: Map<string, number>;
+  generatedAtUtc: string;
+};
+const WEATHER_REVALIDATE_SECONDS = 60 * 30;
+
+function hourKeyUtc(date: Date): string {
+  return `${date.toISOString().slice(0, 13)}:00`;
+}
+
+async function fetchHourlyCloudCover(lat: number, lon: number): Promise<WeatherData | null> {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(
+    String(lat)
+  )}&longitude=${encodeURIComponent(String(lon))}&hourly=cloud_cover&forecast_days=2&timezone=UTC`;
+  try {
+    const resp = await fetch(url, { next: { revalidate: WEATHER_REVALIDATE_SECONDS } });
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    const times: string[] = Array.isArray(json?.hourly?.time) ? json.hourly.time : [];
+    const clouds: number[] = Array.isArray(json?.hourly?.cloud_cover) ? json.hourly.cloud_cover : [];
+    if (!times.length || !clouds.length || times.length !== clouds.length) return null;
+    const cloudByHour = new Map<string, number>();
+    for (let i = 0; i < times.length; i++) {
+      const t = String(times[i]);
+      const c = Number(clouds[i]);
+      if (!Number.isFinite(c)) continue;
+      cloudByHour.set(t.slice(0, 13), c);
+    }
+    return {
+      cloudByHour,
+      generatedAtUtc: new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function cloudStatsForWindow(startIso: string, endIso: string, cloudByHour: Map<string, number>) {
+  const start = new Date(startIso).getTime();
+  const end = new Date(endIso).getTime();
+  let sum = 0;
+  let count = 0;
+  for (let ms = start; ms <= end; ms += 60 * 60 * 1000) {
+    const k = hourKeyUtc(new Date(ms));
+    const cloud = cloudByHour.get(k);
+    if (cloud == null) continue;
+    sum += cloud;
+    count += 1;
+  }
+  if (!count) return { avgCloudPct: null as number | null, sampleCount: 0 };
+  return {
+    avgCloudPct: Number((sum / count).toFixed(1)),
+    sampleCount: count,
+  };
 }
 
 function computeVisibilityWindow(t: Target, lat: number, lon: number, atIso?: string, minAlt = 10) {
@@ -264,13 +353,14 @@ export async function GET(req: NextRequest) {
   const rawParams = Object.fromEntries(searchParams.entries());
   const parsed = querySchema.safeParse(rawParams);
   if (!parsed.success) {
-    return NextResponse.json(
+    return jsonWithApiContract(
       { error: "Invalid query parameters", issues: parsed.error.flatten() },
       { status: 400 }
     );
   }
   const p = parsed.data;
   const minAlt = (p.minAlt ?? 10) as number;
+  const bortle = (p.bortle ?? 4) as number;
 
   const fovWidthDeg = degreesFromSensorAndFocal(p.sensorW, p.focalMm);
   const fovHeightDeg = degreesFromSensorAndFocal(p.sensorH, p.focalMm);
@@ -298,6 +388,8 @@ export async function GET(req: NextRequest) {
     byKey.set(normalizeKey(t.id || t.name), t); // override with curated (has images/descriptions)
   }
   const sourceTargets: Target[] = Array.from(byKey.values());
+  const weather = await fetchHourlyCloudCover(p.lat, p.lon);
+  const skyQualityScore = clamp01((9 - bortle) / 8);
 
   const items = (sourceTargets as Target[]).map((t) => {
     const fillRatio = t.size_deg / fovShortDeg;
@@ -331,7 +423,62 @@ export async function GET(req: NextRequest) {
       visibilityScore = Number((0.6 * durationFactor + 0.4 * altitudeFactor).toFixed(3));
     }
 
-    const finalScore = Number((0.7 * visibilityScore + 0.2 * framingScore + 0.1 * monthFactor).toFixed(3));
+    const moonIllumination = SunCalc.getMoonIllumination(new Date(baseDateIso)).fraction;
+    let moonAboveFraction = 0;
+    let moonAltSamples = 0;
+    let moonAltSum = 0;
+    let moonSepSamples = 0;
+    let moonSepSum = 0;
+    if (window) {
+      const raH = parseHmsToHours(t.ra_hms);
+      const decD = parseDmsToDegrees(t.dec_dms);
+      const startMs = new Date(window.start_utc).getTime();
+      const endMs = new Date(window.end_utc).getTime();
+      let sampleCount = 0;
+      let moonAboveCount = 0;
+      for (let ms = startMs; ms <= endMs; ms += 20 * 60 * 1000) {
+        const d = new Date(ms);
+        const target = horizontalCoordsAt(d, p.lat, p.lon, raH, decD);
+        const moon = SunCalc.getMoonPosition(d, p.lat, p.lon) as any;
+        const moonAltDeg = toDegrees(moon.altitude);
+        if (moonAltDeg > 0) moonAboveCount += 1;
+        moonAltSamples += 1;
+        moonAltSum += moonAltDeg;
+        const sep = angularSeparationDeg(target.altDeg, target.azRad, moonAltDeg, moon.azimuth);
+        if (Number.isFinite(sep)) {
+          moonSepSamples += 1;
+          moonSepSum += sep;
+        }
+        sampleCount += 1;
+      }
+      moonAboveFraction = sampleCount ? moonAboveCount / sampleCount : 0;
+    }
+    const moonAvgAltDeg = moonAltSamples ? Number((moonAltSum / moonAltSamples).toFixed(1)) : null;
+    const moonAvgSepDeg = moonSepSamples ? Number((moonSepSum / moonSepSamples).toFixed(1)) : null;
+    const moonPenalty = clamp01(
+      moonIllumination * 0.35 +
+        moonAboveFraction * 0.45 +
+        (moonAvgSepDeg != null ? clamp01((60 - moonAvgSepDeg) / 60) * 0.2 : 0)
+    );
+    const moonScore = Number((1 - moonPenalty).toFixed(3));
+
+    const cloudStats =
+      window && weather?.cloudByHour ? cloudStatsForWindow(window.start_utc, window.end_utc, weather.cloudByHour) : { avgCloudPct: null, sampleCount: 0 };
+    const weatherScore =
+      cloudStats.avgCloudPct == null ? 0.5 : Number(clamp01(1 - cloudStats.avgCloudPct / 100).toFixed(3));
+    const weatherConfidence =
+      cloudStats.sampleCount >= 5 ? "high" : cloudStats.sampleCount >= 2 ? "medium" : "low";
+
+    const finalScore = Number(
+      (
+        0.45 * visibilityScore +
+        0.2 * framingScore +
+        0.05 * monthFactor +
+        0.15 * moonScore +
+        0.1 * weatherScore +
+        0.05 * skyQualityScore
+      ).toFixed(3)
+    );
 
     return {
       id: t.id,
@@ -344,6 +491,25 @@ export async function GET(req: NextRequest) {
       visibility_score: visibilityScore,
       visible_hours: Number(visibleHours.toFixed(2)),
       score: finalScore,
+      score_breakdown: {
+        visibility: visibilityScore,
+        framing: Number(framingScore.toFixed(3)),
+        season: Number(monthFactor.toFixed(3)),
+        moon: moonScore,
+        weather: weatherScore,
+        sky_quality: Number(skyQualityScore.toFixed(3)),
+      },
+      moon: {
+        illumination_fraction: Number(moonIllumination.toFixed(3)),
+        average_altitude_deg: moonAvgAltDeg,
+        average_separation_deg: moonAvgSepDeg,
+        above_horizon_fraction: Number(moonAboveFraction.toFixed(3)),
+      },
+      weather: {
+        avg_cloud_pct: cloudStats.avgCloudPct,
+        confidence: weatherConfidence,
+        sample_hours: cloudStats.sampleCount,
+      },
       suggested_capture: suggested,
       image_url: t.image_url,
       description: t.description,
@@ -372,6 +538,7 @@ export async function GET(req: NextRequest) {
       time_basis: "local_from_longitude",
       hemisphere: p.lat < 0 ? "southern" : "northern",
       minAlt,
+      bortle,
     },
     debug: {
       night_start_utc: nightStart ? new Date(nightStart).toISOString() : null,
@@ -383,12 +550,20 @@ export async function GET(req: NextRequest) {
       visible_count: recommended.length,
       compute_ms: t1 - t0,
     },
+    context: {
+      sky_quality: {
+        bortle,
+        score: Number(skyQualityScore.toFixed(3)),
+      },
+      weather_source: weather ? "open-meteo" : "unavailable",
+      weather_generated_at_utc: weather?.generatedAtUtc ?? null,
+    },
     filtered_out_examples: items
       .filter((i) => i.framing_score <= 0.15)
       .slice(0, 3),
   };
 
-  return NextResponse.json(payload, {
+  return jsonWithApiContract(payload, {
     status: 200,
     headers: {
       // Cache on the edge for 5 minutes; safe because the response varies by the full query string
@@ -396,4 +571,3 @@ export async function GET(req: NextRequest) {
     },
   });
 }
-

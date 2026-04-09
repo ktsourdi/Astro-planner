@@ -73,7 +73,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   background: pathname === "/" ? "var(--color-accent-bg)" : "transparent"
                 }}
               >
-                📋 Plan Session
+                Plan Session
               </Link>
               <Link 
                 href="/recommend" 
@@ -87,7 +87,21 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   background: pathname === "/recommend" ? "var(--color-accent-bg)" : "transparent"
                 }}
               >
-                ⭐ Recommendations
+                Recommendations
+              </Link>
+              <Link
+                href="/planner"
+                onClick={() => setNavOpen(false)}
+                style={{
+                  color: pathname === "/planner" ? "var(--color-accent)" : "var(--color-text-secondary)",
+                  fontWeight: pathname === "/planner" ? 600 : 400,
+                  transition: "all var(--transition-fast)",
+                  padding: "var(--space-2) var(--space-3)",
+                  borderRadius: "var(--radius-md)",
+                  background: pathname === "/planner" ? "var(--color-accent-bg)" : "transparent",
+                }}
+              >
+                Planner
               </Link>
             </nav>
           </div>
@@ -105,7 +119,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         }}>
           <div className="container text-center">
             <p style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)", marginBottom: 0 }}>
-              © 2024 AstroPlanner • Built for astrophotographers, by astrophotographers
+              © 2026 AstroPlanner • Built for astrophotographers
             </p>
           </div>
         </footer>

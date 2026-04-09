@@ -1,7 +1,7 @@
 "use client";
 
 import targets from "@/data/targets.json";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Props = {
@@ -11,9 +11,11 @@ type Props = {
 
 type PlaceSuggestion = { place_id: string; display_name: string; lat: string; lon: string };
 type CameraSuggestion = { id: string; name: string; sensorW: number; sensorH: number; pixelUm: number | null };
+type SavedProfile = { id: string; name: string; data: any; savedAt: string };
 
 export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
   const router = useRouter();
+  const profileFallbackCounterRef = useRef(0);
   const [activeSection, setActiveSection] = useState<"location" | "equipment" | "settings">("location");
   const [form, setForm] = useState({
     lat: initialLat,
@@ -28,11 +30,23 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     date: new Date().toISOString(),
     minAlt: 10,
     maxMag: 12,
+    bortle: 4,
+    minScore: 0.5,
+    subExposureS: 60,
+    gain: 100,
+    subs: 50,
+    experience: "intermediate" as "beginner" | "intermediate" | "advanced",
+    alertsEnabled: false,
+    alertLeadMin: 15,
   });
 
   // Persist to localStorage with TTL and load on mount
   const STORAGE_KEY = "astro-setup-v1";
+  const PROFILES_KEY = "astro-setup-profiles-v1";
   const TTL_DAYS = 30;
+  const MAX_SAVED_PROFILES = 12;
+  const [profileName, setProfileName] = useState("");
+  const [savedProfiles, setSavedProfiles] = useState<SavedProfile[]>([]);
 
   useEffect(() => {
     try {
@@ -62,10 +76,109 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     } catch {}
   }, [form]);
 
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(PROFILES_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      setSavedProfiles(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setSavedProfiles([]);
+    }
+  }, []);
+
+  function persistProfiles(next: SavedProfile[]) {
+    setSavedProfiles(next);
+    try {
+      window.localStorage.setItem(PROFILES_KEY, JSON.stringify(next));
+    } catch {}
+  }
+
+  function saveCurrentProfile() {
+    const name = profileName.trim();
+    if (!name) return;
+    const fallbackRandom = () => {
+      if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+        const bytes = new Uint8Array(12);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes)
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+      }
+      profileFallbackCounterRef.current += 1;
+      return `${Date.now()}-${profileFallbackCounterRef.current}-${Math.random().toString(36).slice(2, 8)}`;
+    };
+    const entropy =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : fallbackRandom();
+    const id = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${entropy}`;
+    const profile: SavedProfile = {
+      id,
+      name,
+      data: form,
+      savedAt: new Date().toISOString(),
+    };
+    persistProfiles([profile, ...savedProfiles].slice(0, MAX_SAVED_PROFILES));
+    setProfileName("");
+  }
+
+  function loadProfile(profile: SavedProfile) {
+    setForm((f) => ({
+      ...f,
+      ...profile.data,
+    }));
+  }
+
+  function deleteProfile(profileId: string) {
+    persistProfiles(savedProfiles.filter((p) => p.id !== profileId));
+  }
+
   const targetOptions = useMemo(() => targets.map((t) => ({ id: t.id, name: t.name })), []);
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function applyExperiencePreset(level: "beginner" | "intermediate" | "advanced") {
+    if (level === "beginner") {
+      setForm((f) => ({
+        ...f,
+        experience: "beginner",
+        mount: "tracker",
+        minAlt: 20,
+        maxMag: 10.5,
+        minScore: 0.65,
+        subExposureS: 30,
+        gain: 80,
+        subs: 40,
+      }));
+      return;
+    }
+    if (level === "advanced") {
+      setForm((f) => ({
+        ...f,
+        experience: "advanced",
+        mount: "guided",
+        minAlt: 10,
+        maxMag: 13,
+        minScore: 0.35,
+        subExposureS: 180,
+        gain: 100,
+        subs: 90,
+      }));
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      experience: "intermediate",
+      mount: "tracker",
+      minAlt: 15,
+      maxMag: 12,
+      minScore: 0.5,
+      subExposureS: 60,
+      gain: 100,
+      subs: 60,
+    }));
   }
 
   function toParams() {
@@ -78,7 +191,7 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
     return p;
   }
 
-  function persistAndNavigate(target: "plan" | "recommend") {
+  function persistAndNavigate(target: "plan" | "recommend" | "planner") {
     const params = toParams();
     if (target === "plan" && !form.targetId) return;
     const raw = params.toString();
@@ -93,6 +206,8 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
       const url = `/api/plan?${qs}`;
       console.debug("[setup] opening plan", { url });
       window.open(url, "_blank");
+    } else if (target === "planner") {
+      router.push("/planner");
     } else {
       router.push("/recommend");
     }
@@ -424,6 +539,76 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
       {activeSection === "settings" && (
         <div className="animate-fadeIn">
           <div className="form-group">
+            <label>Saved Profiles</label>
+            <div style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-3)", flexWrap: "wrap" }}>
+              <input
+                type="text"
+                value={profileName}
+                onChange={(e) => setProfileName(e.target.value)}
+                placeholder="e.g., Backyard rig"
+                style={{ flex: "1 1 220px" }}
+              />
+              <button type="button" onClick={saveCurrentProfile} className="btn-secondary">
+                💾 Save current
+              </button>
+            </div>
+            {savedProfiles.length > 0 ? (
+              <div style={{ display: "grid", gap: "var(--space-2)" }}>
+                {savedProfiles.map((p) => (
+                  <div
+                    key={p.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "var(--space-2)",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "var(--radius-md)",
+                      padding: "var(--space-2) var(--space-3)",
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 500 }}>{p.name}</div>
+                      <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
+                        Saved {new Date(p.savedAt).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                      <button type="button" className="btn-ghost" onClick={() => loadProfile(p)}>
+                        Load
+                      </button>
+                      <button type="button" className="btn-ghost" onClick={() => deleteProfile(p.id)}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-muted">No profiles saved yet.</div>
+            )}
+          </div>
+
+          <div className="form-group">
+            <label>Experience Preset</label>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "var(--space-3)" }}>
+              {(["beginner", "intermediate", "advanced"] as const).map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  className={form.experience === level ? "" : "btn-secondary"}
+                  onClick={() => applyExperiencePreset(level)}
+                >
+                  {level === "beginner" ? "🟢 Beginner" : level === "intermediate" ? "🟡 Intermediate" : "🔴 Advanced"}
+                </button>
+              ))}
+            </div>
+            <div className="text-sm text-muted" style={{ marginTop: "var(--space-2)" }}>
+              Presets set safe defaults for mount, target difficulty, and capture settings.
+            </div>
+          </div>
+
+          <div className="form-group">
             <label>Mount Type</label>
             <div style={{ 
               display: "grid", 
@@ -490,6 +675,74 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
           </div>
 
           <div className="form-group">
+            <label>Bortle Scale (1 = dark sky, 9 = city center)</label>
+            <input
+              type="range"
+              min={1}
+              max={9}
+              step={1}
+              value={form.bortle}
+              onChange={(e) => update("bortle", Number(e.target.value) as any)}
+            />
+            <div className="text-sm text-muted">Current: Bortle {form.bortle}</div>
+          </div>
+
+          <div className="form-group">
+            <label>Minimum Recommendation Score (difficulty filter)</label>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={form.minScore}
+              onChange={(e) => update("minScore", Number(e.target.value) as any)}
+            />
+            <div className="text-sm text-muted">Current: {(form.minScore * 100).toFixed(0)}%</div>
+          </div>
+
+          <div className="form-group">
+            <label>Capture Defaults (advanced)</label>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "var(--space-3)" }}>
+              <div>
+                <label>Sub Exposure (s)</label>
+                <input type="number" min={1} step={1} value={form.subExposureS} onChange={(e) => update("subExposureS", Number(e.target.value) as any)} />
+              </div>
+              <div>
+                <label>Gain</label>
+                <input type="number" min={0} step={1} value={form.gain} onChange={(e) => update("gain", Number(e.target.value) as any)} />
+              </div>
+              <div>
+                <label>Total Subs</label>
+                <input type="number" min={1} step={1} value={form.subs} onChange={(e) => update("subs", Number(e.target.value) as any)} />
+              </div>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+              <input
+                type="checkbox"
+                checked={form.alertsEnabled}
+                onChange={(e) => update("alertsEnabled", e.target.checked as any)}
+                style={{ width: "auto" }}
+              />
+              Enable browser window alerts
+            </label>
+            <div style={{ marginTop: "var(--space-2)" }}>
+              <label>Alert lead time before window start (minutes)</label>
+              <input
+                type="range"
+                min={0}
+                max={60}
+                step={5}
+                value={form.alertLeadMin}
+                onChange={(e) => update("alertLeadMin", Number(e.target.value) as any)}
+              />
+              <div className="text-sm text-muted">Current: {form.alertLeadMin} min</div>
+            </div>
+          </div>
+
+          <div className="form-group">
             <label>Specific Target (optional)</label>
             <select 
               value={form.targetId} 
@@ -524,6 +777,14 @@ export default function SetupForm({ initialLat = "", initialLon = "" }: Props) {
           style={{ flex: "1 1 200px" }}
         >
           ⭐ Get Recommendations
+        </button>
+        <button
+          type="button"
+          onClick={() => persistAndNavigate("planner")}
+          className="btn-secondary"
+          style={{ flex: "1 1 200px" }}
+        >
+          🗓️ Open Seasonal Planner
         </button>
         <button 
           type="button" 

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { appendApiContractHeader } from "@/lib/api-contract";
 
 export async function GET(req: NextRequest) {
   const name = (req.nextUrl.searchParams.get("name") || "").trim();
   if (!name) {
-    return new NextResponse("Missing name", { status: 400 });
+    return new NextResponse("Missing name", {
+      status: 400,
+      headers: appendApiContractHeader(),
+    });
   }
   const tryTitles = [name];
   if (/^ngc\s*\d+/i.test(name)) {
@@ -19,11 +23,16 @@ export async function GET(req: NextRequest) {
       const thumb = json?.thumbnail?.source as string | undefined;
       if (thumb) {
         // Redirect the browser to the thumbnail URL so <img> can load it directly
-        return NextResponse.redirect(thumb, 302);
+        return NextResponse.redirect(thumb, {
+          status: 302,
+          headers: appendApiContractHeader(),
+        });
       }
     } catch {}
   }
-  return new NextResponse(null, { status: 204 });
+  return new NextResponse(null, {
+    status: 204,
+    headers: appendApiContractHeader(),
+  });
 }
-
 
