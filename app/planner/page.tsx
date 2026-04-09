@@ -75,7 +75,7 @@ export default function PlannerPage() {
     <main className="container" style={{ paddingTop: "var(--space-8)", paddingBottom: "var(--space-8)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
         <div>
-          <h1 style={{ marginBottom: "var(--space-2)" }}>🗓️ Multi-night Planner</h1>
+          <h1 style={{ marginBottom: "var(--space-2)" }}>Multi-night Planner</h1>
           <p style={{ color: "var(--color-text-secondary)", marginBottom: 0 }}>
             {data?.nights.length ?? 0} nights • {totalWindows} suggested windows
           </p>
