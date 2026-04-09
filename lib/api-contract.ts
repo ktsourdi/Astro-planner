@@ -17,7 +17,7 @@ export function withApiContract<T extends Record<string, unknown>>(payload: T) {
 
 export function jsonWithApiContract<T extends Record<string, unknown>>(
   payload: T,
-  init?: ConstructorParameters<typeof NextResponse.json>[1]
+  init?: ResponseInit
 ) {
   const headers = new Headers(init?.headers);
   headers.set("X-Astro-Contract-Version", API_CONTRACT_VERSION);
