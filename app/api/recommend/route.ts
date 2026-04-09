@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import localTargets from "@/data/targets.json";
 import SunCalc from "suncalc";
 import { z } from "zod";
+import { jsonWithApiContract } from "@/lib/api-contract";
 
 const querySchema = z.object({
   lat: z.coerce.number().min(-90).max(90),
@@ -352,7 +353,7 @@ export async function GET(req: NextRequest) {
   const rawParams = Object.fromEntries(searchParams.entries());
   const parsed = querySchema.safeParse(rawParams);
   if (!parsed.success) {
-    return NextResponse.json(
+    return jsonWithApiContract(
       { error: "Invalid query parameters", issues: parsed.error.flatten() },
       { status: 400 }
     );
@@ -562,7 +563,7 @@ export async function GET(req: NextRequest) {
       .slice(0, 3),
   };
 
-  return NextResponse.json(payload, {
+  return jsonWithApiContract(payload, {
     status: 200,
     headers: {
       // Cache on the edge for 5 minutes; safe because the response varies by the full query string

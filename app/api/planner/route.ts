@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import SunCalc from "suncalc";
 import targets from "@/data/targets.json";
+import { jsonWithApiContract } from "@/lib/api-contract";
 
 const querySchema = z.object({
   lat: z.coerce.number().min(-90).max(90),
@@ -245,7 +246,7 @@ export async function GET(req: NextRequest) {
   const params = Object.fromEntries(req.nextUrl.searchParams.entries());
   const parsed = querySchema.safeParse(params);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid query parameters", issues: parsed.error.flatten() }, { status: 400 });
+    return jsonWithApiContract({ error: "Invalid query parameters", issues: parsed.error.flatten() }, { status: 400 });
   }
 
   const p = parsed.data;
@@ -379,7 +380,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return NextResponse.json(
+  return jsonWithApiContract(
     {
       setup: {
         lat: p.lat,

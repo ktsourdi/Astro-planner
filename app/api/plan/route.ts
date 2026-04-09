@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import SunCalc from "suncalc";
 import targets from "@/data/targets.json";
+import { appendApiContractHeader, jsonWithApiContract } from "@/lib/api-contract";
 
 const querySchema = z.object({
   lat: z.coerce.number().min(-90).max(90),
@@ -206,7 +207,7 @@ export async function GET(req: NextRequest) {
   const params = Object.fromEntries(req.nextUrl.searchParams.entries());
   const parsed = querySchema.safeParse(params);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid query parameters", issues: parsed.error.flatten() }, { status: 400 });
+    return jsonWithApiContract({ error: "Invalid query parameters", issues: parsed.error.flatten() }, { status: 400 });
   }
 
   const p = parsed.data;
@@ -220,13 +221,13 @@ export async function GET(req: NextRequest) {
     allTargets.find((t) => normalize(t.name) === key);
 
   if (!target) {
-    return NextResponse.json({ error: `Target not found: ${p.targetId}` }, { status: 404 });
+    return jsonWithApiContract({ error: `Target not found: ${p.targetId}` }, { status: 404 });
   }
 
   const atUtc = p.date ?? new Date().toISOString();
   const window = computeVisibilityWindow(target, p.lat, p.lon, atUtc, minAlt);
   if (!window) {
-    return NextResponse.json(
+    return jsonWithApiContract(
       {
         targetId: target.id,
         targetName: target.name,
@@ -379,12 +380,12 @@ export async function GET(req: NextRequest) {
     const csv = buildPlanCsv(payload);
     return new NextResponse(csv, {
       status: 200,
-      headers: {
+      headers: appendApiContractHeader({
         "Content-Type": "text/csv; charset=utf-8",
         "Content-Disposition": `attachment; filename="astro-plan-${target.id}.csv"`,
-      },
+      }),
     });
   }
 
-  return NextResponse.json(payload, { status: 200 });
+  return jsonWithApiContract(payload, { status: 200 });
 }
