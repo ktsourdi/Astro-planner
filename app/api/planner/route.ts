@@ -339,7 +339,8 @@ export async function GET(req: NextRequest) {
             : { avgCloudPct: null, sampleCount: 0 };
         const weatherScore =
           cloudStats.avgCloudPct == null ? 0.5 : Number(clamp01(1 - cloudStats.avgCloudPct / 100).toFixed(3));
-        const weatherConfidence = cloudStats.sampleCount >= 5 ? "high" : cloudStats.sampleCount >= 2 ? "medium" : "low";
+        const weatherConfidence: "high" | "medium" | "low" =
+          cloudStats.sampleCount >= 5 ? "high" : cloudStats.sampleCount >= 2 ? "medium" : "low";
         const score = Number((0.4 * visibility + 0.25 * framing + 0.1 * season + 0.15 * moonScore + 0.1 * weatherScore).toFixed(3));
         return {
           id: t.id,
