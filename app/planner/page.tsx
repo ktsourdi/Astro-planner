@@ -8,7 +8,7 @@ type PlannerItem = {
   name: string;
   type: string;
   score: number;
-  score_breakdown: { visibility: number; framing: number; season: number };
+  score_breakdown: { visibility: number; framing: number; season: number; moon: number; weather: number };
   window: { start_utc: string; end_utc: string; alt_max_deg: number };
 };
 
@@ -145,7 +145,9 @@ export default function PlannerPage() {
                       {new Date(w.window.start_utc).toLocaleTimeString()} → {new Date(w.window.end_utc).toLocaleTimeString()} • max {Math.round(w.window.alt_max_deg)}°
                     </div>
                     <div style={{ marginTop: "var(--space-1)", fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
-                      V {(w.score_breakdown.visibility * 100).toFixed(0)}% • F {(w.score_breakdown.framing * 100).toFixed(0)}% • S {(w.score_breakdown.season * 100).toFixed(0)}%
+                      V {(w.score_breakdown.visibility * 100).toFixed(0)}% • F {(w.score_breakdown.framing * 100).toFixed(0)}% • S{" "}
+                      {(w.score_breakdown.season * 100).toFixed(0)}% • M {(w.score_breakdown.moon * 100).toFixed(0)}% • W{" "}
+                      {(w.score_breakdown.weather * 100).toFixed(0)}%
                     </div>
                   </div>
                 ))}

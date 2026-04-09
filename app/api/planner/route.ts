@@ -27,6 +27,13 @@ type Target = {
   best_months?: number[];
 };
 
+type WeatherData = {
+  cloudByHour: Map<string, number>;
+  generatedAtUtc: string;
+};
+
+const WEATHER_REVALIDATE_SECONDS = 60 * 30;
+
 function toRadians(deg: number): number {
   return (deg * Math.PI) / 180;
 }
@@ -72,6 +79,84 @@ function altitudeDegreesAt(date: Date, latDeg: number, lonDeg: number, raHours: 
   const delta = toRadians(decDeg);
   const sinAlt = Math.sin(phi) * Math.sin(delta) + Math.cos(phi) * Math.cos(delta) * Math.cos(H);
   return toDegrees(Math.asin(Math.max(-1, Math.min(1, sinAlt))));
+}
+
+function horizontalCoordsAt(
+  date: Date,
+  latDeg: number,
+  lonDeg: number,
+  raHours: number,
+  decDeg: number
+): { altDeg: number; azRad: number } {
+  const gmst = gmstDegrees(date);
+  const lst = normalizeDegrees(gmst + lonDeg);
+  const raDeg = raHours * 15;
+  const hourAngle = normalizeDegrees(lst - raDeg);
+  const H = toRadians(hourAngle);
+  const phi = toRadians(latDeg);
+  const delta = toRadians(decDeg);
+  const sinAlt = Math.sin(phi) * Math.sin(delta) + Math.cos(phi) * Math.cos(delta) * Math.cos(H);
+  const alt = Math.asin(Math.max(-1, Math.min(1, sinAlt)));
+  const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(delta) * Math.cos(phi));
+  return { altDeg: toDegrees(alt), azRad: az };
+}
+
+function angularSeparationDeg(alt1Deg: number, az1Rad: number, alt2Deg: number, az2Rad: number): number {
+  const alt1 = toRadians(alt1Deg);
+  const alt2 = toRadians(alt2Deg);
+  const cosSep = Math.sin(alt1) * Math.sin(alt2) + Math.cos(alt1) * Math.cos(alt2) * Math.cos(az1Rad - az2Rad);
+  return toDegrees(Math.acos(Math.max(-1, Math.min(1, cosSep))));
+}
+
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
+function hourKeyUtc(date: Date): string {
+  return `${date.toISOString().slice(0, 13)}:00`;
+}
+
+async function fetchHourlyCloudCover(lat: number, lon: number): Promise<WeatherData | null> {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(
+    String(lat)
+  )}&longitude=${encodeURIComponent(String(lon))}&hourly=cloud_cover&forecast_days=2&timezone=UTC`;
+  try {
+    const resp = await fetch(url, { next: { revalidate: WEATHER_REVALIDATE_SECONDS } });
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    const times: string[] = Array.isArray(json?.hourly?.time) ? json.hourly.time : [];
+    const clouds: number[] = Array.isArray(json?.hourly?.cloud_cover) ? json.hourly.cloud_cover : [];
+    if (!times.length || !clouds.length || times.length !== clouds.length) return null;
+    const cloudByHour = new Map<string, number>();
+    for (let i = 0; i < times.length; i++) {
+      const t = String(times[i]);
+      const c = Number(clouds[i]);
+      if (!Number.isFinite(c)) continue;
+      cloudByHour.set(t.slice(0, 13), c);
+    }
+    return { cloudByHour, generatedAtUtc: new Date().toISOString() };
+  } catch {
+    return null;
+  }
+}
+
+function cloudStatsForWindow(startIso: string, endIso: string, cloudByHour: Map<string, number>) {
+  const start = new Date(startIso).getTime();
+  const end = new Date(endIso).getTime();
+  let sum = 0;
+  let count = 0;
+  for (let ms = start; ms <= end; ms += 60 * 60 * 1000) {
+    const key = hourKeyUtc(new Date(ms));
+    const cloud = cloudByHour.get(key);
+    if (cloud == null) continue;
+    sum += cloud;
+    count += 1;
+  }
+  if (!count) return { avgCloudPct: null as number | null, sampleCount: 0 };
+  return {
+    avgCloudPct: Number((sum / count).toFixed(1)),
+    sampleCount: count,
+  };
 }
 
 function computeVisibilityWindow(
@@ -172,6 +257,7 @@ export async function GET(req: NextRequest) {
   const minScore = p.minScore ?? 0.4;
   const typeFilter = (p.type || "").trim().toLowerCase();
   const maxPerNight = p.maxPerNight ?? 5;
+  const weather = await fetchHourlyCloudCover(p.lat, p.lon);
 
   const nights: Array<{
     date_utc: string;
@@ -180,7 +266,18 @@ export async function GET(req: NextRequest) {
       name: string;
       type: string;
       score: number;
-      score_breakdown: { visibility: number; framing: number; season: number };
+      score_breakdown: { visibility: number; framing: number; season: number; moon: number; weather: number };
+      moon: {
+        illumination_fraction: number;
+        average_altitude_deg: number | null;
+        average_separation_deg: number | null;
+        above_horizon_fraction: number;
+      };
+      weather: {
+        avg_cloud_pct: number | null;
+        confidence: "high" | "medium" | "low";
+        sample_hours: number;
+      };
       window: { start_utc: string; end_utc: string; alt_max_deg: number };
     }>;
   }> = [];
@@ -200,7 +297,50 @@ export async function GET(req: NextRequest) {
         const framing = computeFramingScore(fillRatio);
         const effectiveBestMonths = rotateMonthsForSouthernHemisphere(t.best_months, p.lat);
         const season = effectiveBestMonths?.includes(month) ? 1 : 0;
-        const score = Number((0.55 * visibility + 0.3 * framing + 0.15 * season).toFixed(3));
+        const moonIllumination = SunCalc.getMoonIllumination(new Date(nightIso)).fraction;
+        let moonAboveFraction = 0;
+        let moonAltSamples = 0;
+        let moonAltSum = 0;
+        let moonSepSamples = 0;
+        let moonSepSum = 0;
+        const raH = parseHmsToHours(t.ra_hms);
+        const decD = parseDmsToDegrees(t.dec_dms);
+        const startMs = new Date(window.start_utc).getTime();
+        const endMs = new Date(window.end_utc).getTime();
+        let moonSampleCount = 0;
+        let moonAboveCount = 0;
+        for (let ms = startMs; ms <= endMs; ms += 20 * 60 * 1000) {
+          const d = new Date(ms);
+          const target = horizontalCoordsAt(d, p.lat, p.lon, raH, decD);
+          const moon = SunCalc.getMoonPosition(d, p.lat, p.lon) as any;
+          const moonAltDeg = toDegrees(moon.altitude);
+          if (moonAltDeg > 0) moonAboveCount += 1;
+          moonAltSamples += 1;
+          moonAltSum += moonAltDeg;
+          const sep = angularSeparationDeg(target.altDeg, target.azRad, moonAltDeg, moon.azimuth);
+          if (Number.isFinite(sep)) {
+            moonSepSamples += 1;
+            moonSepSum += sep;
+          }
+          moonSampleCount += 1;
+        }
+        moonAboveFraction = moonSampleCount ? moonAboveCount / moonSampleCount : 0;
+        const moonAvgAltDeg = moonAltSamples ? Number((moonAltSum / moonAltSamples).toFixed(1)) : null;
+        const moonAvgSepDeg = moonSepSamples ? Number((moonSepSum / moonSepSamples).toFixed(1)) : null;
+        const moonPenalty = clamp01(
+          moonIllumination * 0.35 +
+            moonAboveFraction * 0.45 +
+            (moonAvgSepDeg != null ? clamp01((60 - moonAvgSepDeg) / 60) * 0.2 : 0)
+        );
+        const moonScore = Number((1 - moonPenalty).toFixed(3));
+        const cloudStats =
+          weather?.cloudByHour != null
+            ? cloudStatsForWindow(window.start_utc, window.end_utc, weather.cloudByHour)
+            : { avgCloudPct: null, sampleCount: 0 };
+        const weatherScore =
+          cloudStats.avgCloudPct == null ? 0.5 : Number(clamp01(1 - cloudStats.avgCloudPct / 100).toFixed(3));
+        const weatherConfidence = cloudStats.sampleCount >= 5 ? "high" : cloudStats.sampleCount >= 2 ? "medium" : "low";
+        const score = Number((0.4 * visibility + 0.25 * framing + 0.1 * season + 0.15 * moonScore + 0.1 * weatherScore).toFixed(3));
         return {
           id: t.id,
           name: t.name,
@@ -210,6 +350,19 @@ export async function GET(req: NextRequest) {
             visibility: Number(visibility.toFixed(3)),
             framing: Number(framing.toFixed(3)),
             season,
+            moon: moonScore,
+            weather: weatherScore,
+          },
+          moon: {
+            illumination_fraction: Number(moonIllumination.toFixed(3)),
+            average_altitude_deg: moonAvgAltDeg,
+            average_separation_deg: moonAvgSepDeg,
+            above_horizon_fraction: Number(moonAboveFraction.toFixed(3)),
+          },
+          weather: {
+            avg_cloud_pct: cloudStats.avgCloudPct,
+            confidence: weatherConfidence,
+            sample_hours: cloudStats.sampleCount,
           },
           window,
         };
@@ -240,6 +393,10 @@ export async function GET(req: NextRequest) {
         minAlt,
         minScore,
         type: p.type ?? "",
+      },
+      context: {
+        weather_source: weather ? "open-meteo" : "unavailable",
+        weather_generated_at_utc: weather?.generatedAtUtc ?? null,
       },
       nights,
     },
