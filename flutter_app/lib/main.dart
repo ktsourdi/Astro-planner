@@ -701,33 +701,33 @@ class _SetupPageState extends State<SetupPage> {
             const SizedBox(height: 8),
             Row(
               children: [
-                Expanded(child: _numField('Latitude', _lat)),
+                Expanded(child: _numField('Latitude', _lat, allowSigned: true, min: -90, max: 90)),
                 const SizedBox(width: 12),
-                Expanded(child: _numField('Longitude', _lon)),
+                Expanded(child: _numField('Longitude', _lon, allowSigned: true, min: -180, max: 180)),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: _numField('Sensor W (mm)', _sensorW)),
+                Expanded(child: _numField('Sensor W (mm)', _sensorW, min: 0)),
                 const SizedBox(width: 12),
-                Expanded(child: _numField('Sensor H (mm)', _sensorH)),
+                Expanded(child: _numField('Sensor H (mm)', _sensorH, min: 0)),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: _numField('Pixel (µm)', _pixelUm)),
+                Expanded(child: _numField('Pixel (µm)', _pixelUm, min: 0)),
                 const SizedBox(width: 12),
-                Expanded(child: _numField('Focal (mm)', _focalMm)),
+                Expanded(child: _numField('Focal (mm)', _focalMm, min: 0)),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: _numField('f-number', _fNum)),
+                Expanded(child: _numField('f-number', _fNum, min: 0)),
                 const SizedBox(width: 12),
-                Expanded(child: _numField('Min Alt (°)', _minAlt)),
+                Expanded(child: _numField('Min Alt (°)', _minAlt, min: 0, max: 89)),
               ],
             ),
             const SizedBox(height: 12),
@@ -752,9 +752,9 @@ class _SetupPageState extends State<SetupPage> {
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: _numField('Bortle (1-9)', _bortle)),
+                Expanded(child: _numField('Bortle (1-9)', _bortle, min: 1, max: 9)),
                 const SizedBox(width: 12),
-                Expanded(child: _numField('Min Score (0-1)', _minScore)),
+                Expanded(child: _numField('Min Score (0-1)', _minScore, min: 0, max: 1)),
               ],
             ),
             const SizedBox(height: 12),
@@ -794,12 +794,25 @@ class _SetupPageState extends State<SetupPage> {
     );
   }
 
-  Widget _numField(String label, TextEditingController controller) {
+  Widget _numField(
+    String label,
+    TextEditingController controller, {
+    bool allowSigned = false,
+    double? min,
+    double? max,
+  }) {
     return TextFormField(
       controller: controller,
-      keyboardType: TextInputType.numberWithOptions(decimal: true, signed: true),
+      keyboardType: TextInputType.numberWithOptions(decimal: true, signed: allowSigned),
       decoration: InputDecoration(labelText: label),
-      validator: _requiredNum,
+      validator: (value) {
+        final basic = _requiredNum(value);
+        if (basic != null) return basic;
+        final parsed = double.parse(value!.trim());
+        if (min != null && parsed < min) return 'Must be ≥ $min';
+        if (max != null && parsed > max) return 'Must be ≤ $max';
+        return null;
+      },
     );
   }
 }
